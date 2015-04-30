@@ -25,7 +25,7 @@ Clone to a directory of your choice.
 
 .. code-block:: bash
 
-   $ git clone git@github.com:bartvm/blocks-contrib.git
+   $ git clone git@github.com:mila-udem/blocks-extras.git
 
 Install in editible mode using this command from within the folder you just
 cloned:
