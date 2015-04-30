@@ -1,7 +1,7 @@
 Blocks extras
 =============
 
-The `blocks-extras` repository contains a variety of useful extensions to
+The ``blocks-extras`` repository contains a variety of useful extensions to
 Blocks_. The goal of this repository is for people to share useful extensions,
 bricks, and other code snippets that are perhaps not general enough to go into
 the core Blocks repository.
@@ -11,7 +11,7 @@ the core Blocks repository.
 Usage
 -----
 
-`blocks-extras` is a namespace package, which means that everything can be
+``blocks-extras`` is a namespace package, which means that everything can be
 imported from `blocks.extras`. For example, you can use:
 
 .. code-block:: python
