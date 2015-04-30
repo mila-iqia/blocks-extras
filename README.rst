@@ -12,7 +12,7 @@ Usage
 -----
 
 ``blocks-extras`` is a namespace package, which means that everything can be
-imported from `blocks.extras`. For example, you can use:
+imported from ``blocks.extras``. For example, you can use:
 
 .. code-block:: python
 
