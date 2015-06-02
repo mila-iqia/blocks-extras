@@ -35,13 +35,6 @@ then run this from the directory you just cloned instead:
 Note that you `might have problems`_ with namespace packages if you try to install using
 ``python setup.py develop``.
 
-If you want to update to the latest version, simply pull the latest
-changes from GitHub.
-
-.. code-block:: bash
-
-   $ git pull
-
 .. _limitations in pip: https://github.com/pypa/pip/issues/3
 .. _might have problems: https://github.com/pypa/packaging-problems/issues/12
 
