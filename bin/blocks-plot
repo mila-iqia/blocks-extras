@@ -6,6 +6,13 @@ import logging
 
 from six import iteritems
 
+from blocks.utils import reraise_as
+
+try:
+    from pandas import DataFrame
+except ImportError:
+    reraise_as("pandas is required for blocks-plot")
+
 PROMPT_HEADER = """
 
 Type a comma separated list of channels to plot or [q]uit.
@@ -49,7 +56,7 @@ def main(args):
         rows_to_keep = ([0] + log.status['_epoch_ends']
                         if args.every == "epoch"
                         else range(log.status['iterations_done']))
-        data_frame = log.to_dataframe()
+        data_frame = DataFrame.from_dict(log, orient='index')
         data_frame = data_frame.iloc[rows_to_keep]
 
         experiments[fname] = data_frame
