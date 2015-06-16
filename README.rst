@@ -18,7 +18,7 @@ Clone to a directory of your choice.
    $ git clone git@github.com:mila-udem/blocks-extras.git
 
 Because of `limitations in pip`_ it is important that you install ``blocks-extras``
-the same way that you installed Blocks. So, if you installed Blocks in editible mode,
+the same way that you installed Blocks. So, if you installed Blocks in editable mode,
 use the command:
 
 .. code-block:: bash
