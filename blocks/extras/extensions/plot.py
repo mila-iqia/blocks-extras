@@ -6,6 +6,7 @@ from subprocess import Popen, PIPE
 try:
     from bokeh.plotting import (curdoc, cursession, figure, output_server,
                                 push, show)
+    from bokeh.util.platform import is_notebook
     BOKEH_AVAILABLE = True
 except ImportError:
     BOKEH_AVAILABLE = False
@@ -84,42 +85,60 @@ class Plot(SimpleExtension):
         self.start_server = start_server
         self.document = document
         self.server_url = server_url
+        
+        self.in_notebook = False
+        if cursession() is not None:
+            self.in_notebook = is_notebook()
+
         self._startserver()
 
         # Create figures for each group of channels
         self.p = []
         self.p_indices = {}
         for i, channel_set in enumerate(channels):
-            self.p.append(figure(title='{} #{}'.format(document, i + 1)))
-            for channel in channel_set:
+            fig = figure(title='{} #{}'.format(document, i + 1))
+                             
+            for j, channel in enumerate(channel_set):
                 self.p_indices[channel] = i
-        if open_browser:
-            show()
+                fig.line([], [], legend=channel,
+                                 x_axis_label='iterations',
+                                 y_axis_label='value', name=channel,
+                                 line_color=self.colors[j % len(self.colors)])
+        
+            self.p.append(fig)
+            if self.in_notebook or open_browser:
+                show(fig)
+        
+            for j, channel in enumerate(channel_set):
+                    renderer = fig.select(dict(name=channel))
+                    self.plots[channel] = renderer[0].data_source        
+        
+        #if open_browser:
+        #    show()
 
         kwargs.setdefault('after_epoch', True)
         kwargs.setdefault("before_first_epoch", True)
         super(Plot, self).__init__(**kwargs)
 
     def do(self, which_callback, *args):
+        #print("plot:do")
         log = self.main_loop.log
         iteration = log.status['iterations_done']
-        i = 0
+
         for key, value in log.current_row.items():
             if key in self.p_indices:
                 if key not in self.plots:
-                    fig = self.p[self.p_indices[key]]
-                    fig.line([iteration], [value], legend=key,
-                             x_axis_label='iterations',
-                             y_axis_label='value', name=key,
-                             line_color=self.colors[i % len(self.colors)])
-                    i += 1
-                    renderer = fig.select(dict(name=key))
-                    self.plots[key] = renderer[0].data_source
+                    print("Missing key '%s'" % (key))
                 else:
                     self.plots[key].data['x'].append(iteration)
                     self.plots[key].data['y'].append(value)
 
-                    cursession().store_objects(self.plots[key])
+                    if cursession() is not None:
+                        cursession().store_objects(self.plots[key])
+                    else:
+                        print("plot:cursession() is None")
+                    #print("plot:data.x=%s" % (self.plots[key].data['x']))
+        
         push()
 
     def _startserver(self):
@@ -136,7 +155,9 @@ class Plot(SimpleExtension):
             logger.info('Plotting server PID: {}'.format(self.sub.pid))
         else:
             self.sub = None
-        output_server(self.document, url=self.server_url)
+
+        if not self.in_notebook:
+            output_server(self.document, url=self.server_url)
 
     def __getstate__(self):
         state = self.__dict__.copy()
