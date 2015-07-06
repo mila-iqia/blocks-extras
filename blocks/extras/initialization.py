@@ -37,7 +37,9 @@ class PermutationMatrix(NdarrayInitialization):
 
 
 class NormalizedInitialization(NdarrayInitialization):
-    u"""Initialize the parameters with the Glorot method, as introduced in
+    u"""Initialize the parameters with the Glorot initializarion scheme.
+
+    More details about this initialization scheme can be found in
     [AISTATS10]_.
 
     .. [AISTATS10] Xavier Glorot and Yoshua Bengio, *Understanding the
