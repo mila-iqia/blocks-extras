@@ -50,7 +50,7 @@ def test_normalized():
         assert weights.shape == shape
         assert weights.dtype == theano.config.floatX
         assert_allclose(weights.mean(), 0, atol=1e-2)
-        std = 2 * numpy.sqrt(6. / shape.sum()) / numpy.sqrt(12)
+        std = 2 * numpy.sqrt(6. / (shape[0] + shape[1])) / numpy.sqrt(12)
         assert_allclose(weights.std(), std, atol=1e-2)
     yield check_normalized, rng, (500, 600)
     yield check_normalized, rng, (600, 500)
