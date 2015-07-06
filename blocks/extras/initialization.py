@@ -34,3 +34,19 @@ class PermutationMatrix(NdarrayInitialization):
             return make_matrix(shape[0], self.permutation)
         else:
             return make_matrix(shape[0], rng.permutation(shape[0]))
+
+
+class NormalizedInitialization(NdarrayInitialization):
+    u"""Initialize the parameters with the Glorot method, as introduced in
+    [AISTATS10]_.
+
+    .. [AISTATS10] Xavier Glorot and Yoshua Bengio, *Understanding the
+        difficulty of training deep feedforward neural networks*, AISTATS
+        (2010), pp. 249-256.
+
+    """
+    def generate(self, rng, shape):
+        input_size, output_size = shape
+        high = numpy.sqrt(6) / numpy.sqrt(input_size + output_size)
+        m = rng.uniform(-high, high, size=shape)
+        return m.astype(theano.config.floatX)
