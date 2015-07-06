@@ -37,10 +37,11 @@ class PermutationMatrix(NdarrayInitialization):
 
 
 class NormalizedInitialization(NdarrayInitialization):
-    u"""Initialize the parameters using the Glorot initialization scheme.
+    u"""Initialize the parameters using the Xavier initialization scheme.
 
-    More details about this initialization scheme can be found in
-    [AISTATS10]_.
+    This initialization only works for fully connected layers
+    (2D matrices) and tanh activations. More details about it can be found
+    in [AISTATS10]_.
 
     .. [AISTATS10] Xavier Glorot and Yoshua Bengio, *Understanding the
         difficulty of training deep feedforward neural networks*, AISTATS
