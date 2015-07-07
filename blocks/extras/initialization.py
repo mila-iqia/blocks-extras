@@ -40,8 +40,8 @@ class NormalizedInitialization(NdarrayInitialization):
     u"""Initialize the parameters using the Xavier initialization scheme.
 
     This initialization only works for fully connected layers
-    (2D matrices) and tanh activations. More details about it can be found
-    in [AISTATS10]_.
+    (2D matrices) and is intended for use with tanh activations. More
+    details about it can be found in [AISTATS10]_.
 
     .. [AISTATS10] Xavier Glorot and Yoshua Bengio, *Understanding the
         difficulty of training deep feedforward neural networks*, AISTATS
