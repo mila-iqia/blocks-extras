@@ -85,7 +85,7 @@ class Plot(SimpleExtension):
         self.start_server = start_server
         self.document = document
         self.server_url = server_url
-        
+
         self.in_notebook = False
         if cursession() is not None:
             self.in_notebook = is_notebook()
@@ -99,29 +99,29 @@ class Plot(SimpleExtension):
             fig = figure(title='{} #{}'.format(document, i + 1),
                          x_axis_label='iterations',
                          y_axis_label='value')
-                             
+
             for j, channel in enumerate(channel_set):
                 self.p_indices[channel] = i
                 fig.line([], [], legend=channel, name=channel,
                          line_color=self.colors[j % len(self.colors)])
-        
+
             self.p.append(fig)
             if self.in_notebook or open_browser:
                 show(fig)
-        
+
             for j, channel in enumerate(channel_set):
                     renderer = fig.select(dict(name=channel))
-                    self.plots[channel] = renderer[0].data_source        
-        
-        #if open_browser:
-        #    show()
+                    self.plots[channel] = renderer[0].data_source
+
+        # if open_browser:
+        #     show()
 
         kwargs.setdefault('after_epoch', True)
         kwargs.setdefault("before_first_epoch", True)
         super(Plot, self).__init__(**kwargs)
 
     def do(self, which_callback, *args):
-        #print("plot:do")
+        # print("plot:do")
         log = self.main_loop.log
         iteration = log.status['iterations_done']
 
@@ -137,8 +137,8 @@ class Plot(SimpleExtension):
                         cursession().store_objects(self.plots[key])
                     else:
                         print("plot:cursession() is None")
-                    #print("plot:data.x=%s" % (self.plots[key].data['x']))
-        
+                    # print("plot:data.x=%s" % (self.plots[key].data['x']))
+
         push()
 
     def _startserver(self):
