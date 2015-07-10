@@ -96,14 +96,14 @@ class Plot(SimpleExtension):
         self.p = []
         self.p_indices = {}
         for i, channel_set in enumerate(channels):
-            fig = figure(title='{} #{}'.format(document, i + 1))
+            fig = figure(title='{} #{}'.format(document, i + 1),
+                         x_axis_label='iterations',
+                         y_axis_label='value')
                              
             for j, channel in enumerate(channel_set):
                 self.p_indices[channel] = i
-                fig.line([], [], legend=channel,
-                                 x_axis_label='iterations',
-                                 y_axis_label='value', name=channel,
-                                 line_color=self.colors[j % len(self.colors)])
+                fig.line([], [], legend=channel, name=channel,
+                         line_color=self.colors[j % len(self.colors)])
         
             self.p.append(fig)
             if self.in_notebook or open_browser:
