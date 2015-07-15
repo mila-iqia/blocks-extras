@@ -3,7 +3,7 @@ from blocks.utils import shared_floatx
 
 
 class BasicNesterovMomentum(StepRule):
-    """Accumulates step with exponential discount.
+    u"""Accumulates step with exponential discount.
 
     Parameters
     ----------
@@ -15,6 +15,12 @@ class BasicNesterovMomentum(StepRule):
     This step rule is intended to be used in conjunction with another
     step rule, _e.g._ :class:`Scale`. For an all-batteries-included
     experience, look at :class:`NesterovMomentum`.
+
+    It is implemented as in [BBR13].
+
+    .. [BBR13] Yoshua Bengio, Nicolas Boulanger-Lewandowski, and Razvan
+        Pascanu, *Advances in optimizing recurrent networks*,
+        ICASSP (2013), pp 8624-8628.
 
     """
     def __init__(self, momentum=0.):
