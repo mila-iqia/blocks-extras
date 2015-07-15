@@ -37,6 +37,7 @@ class BasicNesterovMomentum(StepRule):
 
 class NesterovMomentum(CompositeRule):
     """Accumulates step with exponential discount.
+
     Combines :class:`BasicNesterovMomentum` and :class:`Scale` to form the
     usual Nesterov momentum step rule.
 
