@@ -16,7 +16,12 @@ class BasicNesterovMomentum(StepRule):
     step rule, _e.g._ :class:`Scale`. For an all-batteries-included
     experience, look at :class:`NesterovMomentum`.
 
-    It is implemented as in [BBR13].
+    The Nesterov momentum comes from [N83] and it is implemented as in
+    [BBR13].
+
+    .. [N83] Yurii Nesterov, *A method of solving a convex programming
+        problem with convergence rate O(1/sqr(k))*, Soviet Mathematics
+        Doklady (1983), Vol. 27, No. 2, pp. 372-376.
 
     .. [BBR13] Yoshua Bengio, Nicolas Boulanger-Lewandowski, and Razvan
         Pascanu, *Advances in optimizing recurrent networks*,
