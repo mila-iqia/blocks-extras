@@ -19,7 +19,7 @@ def test_basic_nesterov_momentum():
         OrderedDict([(a, tensor.grad(cost, a))]))
     f_classic = theano.function([], [steps_classic[a]],
                                 updates=updates_classic)
-    f_classic()  # One call for the "peek ahed" of the Nesterov momentum.
+    f_classic()  # One call for the "peek ahead" of the Nesterov momentum.
     assert_allclose(f()[0], f_classic()[0])
     assert_allclose(f()[0], f_classic()[0])
     assert_allclose(f()[0], f_classic()[0])
