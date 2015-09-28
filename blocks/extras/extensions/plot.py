@@ -13,6 +13,7 @@ except ImportError:
 
 from blocks.config import config
 from blocks.extensions import SimpleExtension
+from requests.exceptions import ConnectionError
 
 logger = logging.getLogger(__name__)
 
@@ -114,27 +115,32 @@ class Plot(SimpleExtension):
         super(Plot, self).__init__(**kwargs)
 
     def do(self, which_callback, *args):
-        log = self.main_loop.log
-        iteration = log.status['iterations_done']
-        i = 0
-        for key, value in log.current_row.items():
-            if key in self.p_indices:
-                if key not in self.plots:
-                    fig = self.p[self.p_indices[key]]
-                    fig.line([iteration], [value], legend=key,
-                             x_axis_label='iterations',
-                             y_axis_label='value', name=key,
-                             line_color=self.colors[i % len(self.colors)])
-                    i += 1
-                    renderer = fig.select(dict(name=key))
-                    self.plots[key] = renderer[0].data_source
-                else:
-                    self.plots[key].data['x'].append(iteration)
-                    self.plots[key].data['y'].append(value)
+        try:
+            log = self.main_loop.log
+            iteration = log.status['iterations_done']
+            i = 0
+            for key, value in log.current_row.items():
+                if key in self.p_indices:
+                    if key not in self.plots:
+                        fig = self.p[self.p_indices[key]]
+                        fig.line([iteration], [value], legend=key,
+                                 x_axis_label='iterations',
+                                 y_axis_label='value', name=key,
+                                 line_color=self.colors[i % len(self.colors)])
+                        i += 1
+                        renderer = fig.select(dict(name=key))
+                        self.plots[key] = renderer[0].data_source
+                    else:
+                        self.plots[key].data['x'].append(iteration)
+                        self.plots[key].data['y'].append(value)
 
-                    cursession().store_objects(self.plots[key])
-        push()
-
+                        cursession().store_objects(self.plots[key])
+            push()
+        except ConnectionError as e:
+            print "Connection error: {0}".format(e)
+        except Exception:
+            print "Unexpected error: {0}".format(e)
+            
     def _startserver(self):
         if self.start_server:
             def preexec_fn():
