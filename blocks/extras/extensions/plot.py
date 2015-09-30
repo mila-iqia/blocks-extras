@@ -2,6 +2,7 @@ import logging
 import signal
 import time
 from subprocess import Popen, PIPE
+import traceback
 
 try:
     from bokeh.plotting import (curdoc, cursession, figure, output_server,
@@ -136,11 +137,10 @@ class Plot(SimpleExtension):
 
                         cursession().store_objects(self.plots[key])
             push()
-        except ConnectionError as e:
-            print "Connection error: {0}".format(e)
-        except Exception:
-            print "Unexpected error: {0}".format(e)
             
+        except Exception:
+            print(traceback.format_exc())
+
     def _startserver(self):
         if self.start_server:
             def preexec_fn():
