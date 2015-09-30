@@ -2,6 +2,7 @@ import logging
 import signal
 import time
 from subprocess import Popen, PIPE
+import traceback
 
 try:
     from bokeh.plotting import (curdoc, cursession, figure, output_server,
@@ -114,26 +115,30 @@ class Plot(SimpleExtension):
         super(Plot, self).__init__(**kwargs)
 
     def do(self, which_callback, *args):
-        log = self.main_loop.log
-        iteration = log.status['iterations_done']
-        i = 0
-        for key, value in log.current_row.items():
-            if key in self.p_indices:
-                if key not in self.plots:
-                    fig = self.p[self.p_indices[key]]
-                    fig.line([iteration], [value], legend=key,
-                             x_axis_label='iterations',
-                             y_axis_label='value', name=key,
-                             line_color=self.colors[i % len(self.colors)])
-                    i += 1
-                    renderer = fig.select(dict(name=key))
-                    self.plots[key] = renderer[0].data_source
-                else:
-                    self.plots[key].data['x'].append(iteration)
-                    self.plots[key].data['y'].append(value)
+        try:
+            log = self.main_loop.log
+            iteration = log.status['iterations_done']
+            i = 0
+            for key, value in log.current_row.items():
+                if key in self.p_indices:
+                    if key not in self.plots:
+                        fig = self.p[self.p_indices[key]]
+                        fig.line([iteration], [value], legend=key,
+                                 x_axis_label='iterations',
+                                 y_axis_label='value', name=key,
+                                 line_color=self.colors[i % len(self.colors)])
+                        i += 1
+                        renderer = fig.select(dict(name=key))
+                        self.plots[key] = renderer[0].data_source
+                    else:
+                        self.plots[key].data['x'].append(iteration)
+                        self.plots[key].data['y'].append(value)
 
-                    cursession().store_objects(self.plots[key])
-        push()
+                        cursession().store_objects(self.plots[key])
+            push()
+
+        except Exception:
+            print(traceback.format_exc())
 
     def _startserver(self):
         if self.start_server:
