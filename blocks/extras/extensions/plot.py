@@ -14,7 +14,6 @@ except ImportError:
 
 from blocks.config import config
 from blocks.extensions import SimpleExtension
-from requests.exceptions import ConnectionError
 
 logger = logging.getLogger(__name__)
 
@@ -137,7 +136,7 @@ class Plot(SimpleExtension):
 
                         cursession().store_objects(self.plots[key])
             push()
-            
+
         except Exception:
             print(traceback.format_exc())
 
