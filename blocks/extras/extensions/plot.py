@@ -123,7 +123,8 @@ class Plot(SimpleExtension):
         for key, value in log.current_row.items():
             if key in self.p_indices:
                 if key not in self.plots:
-                    line_color = self.colors[self.color_indices[key] % len(self.colors)]
+                    line_color = self.colors[
+                        self.color_indices[key] % len(self.colors)]
                     fig = self.p[self.p_indices[key]]
                     fig.line([iteration], [value],
                              legend=key, name=key,

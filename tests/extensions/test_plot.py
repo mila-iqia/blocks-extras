@@ -2,6 +2,7 @@ from blocks.utils.testing import MockMainLoop
 from blocks.extensions import SimpleExtension, FinishAfter
 from blocks.extras.extensions.plot import Plot
 
+
 def test_plot():
     class Writer(SimpleExtension):
         def do(self, *args, **kwargs):
@@ -11,6 +12,4 @@ def test_plot():
         Writer(after_batch=True),
         Plot('test', [['channel']]).set_conditions(after_batch=True),
         FinishAfter(after_n_batches=11)])
-
     main_loop.run()
-
