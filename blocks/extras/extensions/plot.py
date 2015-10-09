@@ -96,6 +96,7 @@ class Plot(SimpleExtension):
         # Create figures for each group of channels
         self.p = []
         self.p_indices = {}
+        self.color_indices = {}
         for i, channel_set in enumerate(channels):
             channel_set_opts = {}
             if isinstance(channel_set, dict):
@@ -103,9 +104,12 @@ class Plot(SimpleExtension):
                 channel_set = channel_set_opts.pop('channels')
             channel_set_opts.setdefault('title',
                                         '{} #{}'.format(document, i + 1))
+            channel_set_opts.setdefault('x_axis_label', 'iterations')
+            channel_set_opts.setdefault('y_axis_label', 'value')
             self.p.append(figure(**channel_set_opts))
-            for channel in channel_set:
+            for j, channel in enumerate(channel_set):
                 self.p_indices[channel] = i
+                self.color_indices[channel] = j
         if open_browser:
             show()
 
@@ -116,16 +120,15 @@ class Plot(SimpleExtension):
     def do(self, which_callback, *args):
         log = self.main_loop.log
         iteration = log.status['iterations_done']
-        i = 0
         for key, value in log.current_row.items():
             if key in self.p_indices:
                 if key not in self.plots:
+                    line_color = self.colors[
+                        self.color_indices[key] % len(self.colors)]
                     fig = self.p[self.p_indices[key]]
-                    fig.line([iteration], [value], legend=key,
-                             x_axis_label='iterations',
-                             y_axis_label='value', name=key,
-                             line_color=self.colors[i % len(self.colors)])
-                    i += 1
+                    fig.line([iteration], [value],
+                             legend=key, name=key,
+                             line_color=line_color)
                     renderer = fig.select(dict(name=key))
                     self.plots[key] = renderer[0].data_source
                 else:
