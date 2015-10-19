@@ -34,7 +34,7 @@ def plot_dataframe(dataframe):
     print("Plotting {} channels:".format(len(dataframe.columns)))
     for cname, series in iteritems(dataframe):
         print("    {}".format(cname))
-        pylab.plot(t, series.interpolate(), label=cname)
+        pylab.plot(t, series, label=cname)
     pylab.legend()
     pylab.show(block=True)
 

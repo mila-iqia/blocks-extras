@@ -22,8 +22,8 @@ def some_experiments():
     experiments['exp0']['col0'] = (0, 1, 2)
     experiments['exp0']['col1'] = (3, 4, 5)
     experiments['exp1'] = DataFrame()
-    experiments['exp1']['col0'] = (6, 7, 8)
-    experiments['exp1']['col1'] = (9, 9, 9)
+    experiments['exp1']['col0'] = (6, 7, 8, 9)
+    experiments['exp1']['col1'] = (9, 9, 9, 9)
     return experiments
 
 
@@ -66,3 +66,4 @@ def test_match_column_specs():
 
     assert isinstance(df, DataFrame)
     assert list(df.columns) == ['0:col0', '0:col1', '1:col1']
+    assert list(df.index) == [0, 1, 2, 3]
