@@ -41,7 +41,7 @@ def plot_dataframe(dataframe):
 
 def main(args):
     import readline
-    import blocks.scripts.plot as plot
+    import blocks.extras.scripts.plot as plot
 
     from six import iteritems
     from six.moves import input
