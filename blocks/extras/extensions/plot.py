@@ -1,3 +1,5 @@
+from collections import namedtuple
+from functools import total_ordering
 import logging
 import signal
 import time
@@ -175,8 +177,15 @@ class Plot(SimpleExtension):
         curdoc().add(*self.p)
 
 
-class PushThread(Thread):
+@total_ordering
+class _WorkItem(namedtuple('BaseWorkItem', ['priority', 'obj'])):
+    __slots__ = ()
 
+    def __lt__(self, other):
+        return self.priority < other.priority
+
+
+class PushThread(Thread):
     # Define priority constants
     PUSH = 1
     PUT = 2
@@ -187,7 +196,7 @@ class PushThread(Thread):
         self.setDaemon(True)
 
     def put(self, obj, priority):
-        self.queue.put((priority, obj))
+        self.queue.put(_WorkItem(priority, obj))
 
     def run(self):
         while True:
