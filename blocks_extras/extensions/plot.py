@@ -1,15 +1,18 @@
+from abc import ABCMeta, abstractmethod
 from collections import namedtuple
 from functools import total_ordering
 import logging
 import signal
 import time
+from six import add_metaclass
 from six.moves.queue import PriorityQueue
 from subprocess import Popen, PIPE
 from threading import Thread
 
 try:
-    from bokeh.plotting import (curdoc, cursession, figure, output_server,
-                                push, show)
+    from bokeh.document import Document
+    from bokeh.plotting import figure
+    from bokeh.session import Session
     BOKEH_AVAILABLE = True
 except ImportError:
     BOKEH_AVAILABLE = False
@@ -21,7 +24,91 @@ from blocks.extensions import SimpleExtension
 logger = logging.getLogger(__name__)
 
 
-class Plot(SimpleExtension):
+@add_metaclass(ABCMeta)
+class PlottingExtension(SimpleExtension):
+    """Base class for extensions doing Bokeh plotting.
+
+    Parameters
+    ----------
+    document_name : str
+        The name of the Bokeh document. Use a different name for each
+        experiment if you are storing your plots.
+    start_server : bool, optional
+        Whether to try and start the Bokeh plotting server. Defaults to
+        ``False``. The server started is not persistent i.e. after shutting
+        it down you will lose your plots. If you want to store your plots,
+        start the server manually using the ``bokeh-server`` command. Also
+        see the warning above.
+    server_url : str, optional
+        Url of the bokeh-server. Ex: when starting the bokeh-server with
+        ``bokeh-server --ip 0.0.0.0`` at ``alice``, server_url should be
+        ``http://alice:5006``. When not specified the default configured
+        by ``bokeh_server`` in ``.blocksrc`` will be used. Defaults to
+        ``http://localhost:5006/``.
+    clear_document : bool, optional
+        Whether or not to clear the contents of the server-side document
+        upon creation. If `False`, previously existing plots within the
+        document will be kept. Defaults to `True`.
+
+    """
+    def __init__(self, document_name, server_url=None, start_server=False,
+                 clear_document=True, **kwargs):
+        self.document_name = document_name
+        self.server_url = (config.bokeh_server if server_url is None
+                           else server_url)
+        self.start_server = start_server
+        self.sub = self._start_server_process() if self.start_server else None
+        self.session = Session(root_url=self.server_url)
+        self.document = Document()
+        self.session.use_doc(self.document_name)
+        self.session.load_document(self.document)
+        if clear_document:
+            self.document.clear()
+        super(PlottingExtension, self).__init__(**kwargs)
+
+    def _start_server_process(self):
+        def preexec_fn():
+            """Prevents the server from dying on training interrupt."""
+            signal.signal(signal.SIGINT, signal.SIG_IGN)
+        # Only memory works with subprocess, need to wait for it to start
+        logger.info('Starting plotting server on localhost:5006')
+        self.sub = Popen('bokeh-server --ip 0.0.0.0 '
+                         '--backend memory'.split(),
+                         stdout=PIPE, stderr=PIPE, preexec_fn=preexec_fn)
+        time.sleep(2)
+        logger.info('Plotting server PID: {}'.format(self.sub.pid))
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state['sub'] = None
+        state.pop('_push_thread', None)
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        if self.start_server:
+            self._start_server_process()
+        self.session.use_doc(self.document_name)
+
+    @property
+    def push_thread(self):
+        if not hasattr(self, '_push_thread'):
+            self._push_thread = PushThread(self.session, self.document)
+            self._push_thread.start()
+        return self._push_thread
+
+    def store(self, obj):
+        self.push_thread.put(obj, PushThread.PUT)
+
+    def push(self, which_callback):
+        self.push_thread.put(which_callback, PushThread.PUSH)
+
+    @abstractmethod
+    def do(self, which_callback, *args):
+        pass
+
+
+class Plot(PlottingExtension):
     r"""Live plotting of monitoring channels.
 
     In most cases it is preferable to start the Bokeh plotting server
@@ -45,9 +132,8 @@ class Plot(SimpleExtension):
 
     Parameters
     ----------
-    document : str
-        The name of the Bokeh document. Use a different name for each
-        experiment if you are storing your plots.
+    document_name : str
+        See :class:`PlottingExtension` for details.
     channels : list of channel specifications
         A channel specification is either a list of channel names, or a
         dict with at least the entry ``channels`` mapping to a list of
@@ -61,42 +147,17 @@ class Plot(SimpleExtension):
         is a dict, the field channels is used to specify the contnts of the
         figure, and all remaining keys are passed as ``\*\*kwargs`` to
         the ``figure`` function.
-    open_browser : bool, optional
-        Whether to try and open the plotting server in a browser window.
-        Defaults to ``True``. Should probably be set to ``False`` when
-        running experiments non-locally (e.g. on a cluster or through SSH).
-    start_server : bool, optional
-        Whether to try and start the Bokeh plotting server. Defaults to
-        ``False``. The server started is not persistent i.e. after shutting
-        it down you will lose your plots. If you want to store your plots,
-        start the server manually using the ``bokeh-server`` command. Also
-        see the warning above.
-    server_url : str, optional
-        Url of the bokeh-server. Ex: when starting the bokeh-server with
-        ``bokeh-server --ip 0.0.0.0`` at ``alice``, server_url should be
-        ``http://alice:5006``. When not specified the default configured
-        by ``bokeh_server`` in ``.blocksrc`` will be used. Defaults to
-        ``http://localhost:5006/``.
 
     """
     # Tableau 10 colors
     colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
               '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
 
-    def __init__(self, document, channels, open_browser=False,
-                 start_server=False, server_url=None, **kwargs):
+    def __init__(self, document_name, channels, **kwargs):
         if not BOKEH_AVAILABLE:
-            raise ImportError
-
-        if server_url is None:
-            server_url = config.bokeh_server
-
+            raise ImportError('Bokeh required for {} extension'
+                              .format(self.__class__.__name__))
         self.plots = {}
-        self.start_server = start_server
-        self.document = document
-        self.server_url = server_url
-        self._startserver()
-
         # Create figures for each group of channels
         self.p = []
         self.p_indices = {}
@@ -107,27 +168,18 @@ class Plot(SimpleExtension):
                 channel_set_opts = channel_set
                 channel_set = channel_set_opts.pop('channels')
             channel_set_opts.setdefault('title',
-                                        '{} #{}'.format(document, i + 1))
+                                        '{} #{}'.format(document_name, i + 1))
             channel_set_opts.setdefault('x_axis_label', 'iterations')
             channel_set_opts.setdefault('y_axis_label', 'value')
             self.p.append(figure(**channel_set_opts))
             for j, channel in enumerate(channel_set):
                 self.p_indices[channel] = i
                 self.color_indices[channel] = j
-        if open_browser:
-            show()
 
         kwargs.setdefault('after_epoch', True)
-        kwargs.setdefault("before_first_epoch", True)
-        kwargs.setdefault("after_training", True)
-        super(Plot, self).__init__(**kwargs)
-
-    @property
-    def push_thread(self):
-        if not hasattr(self, '_push_thread'):
-            self._push_thread = PushThread()
-            self._push_thread.start()
-        return self._push_thread
+        kwargs.setdefault('before_first_epoch', True)
+        kwargs.setdefault('after_training', True)
+        super(Plot, self).__init__(document_name, **kwargs)
 
     def do(self, which_callback, *args):
         log = self.main_loop.log
@@ -141,40 +193,14 @@ class Plot(SimpleExtension):
                     fig.line([iteration], [value],
                              legend=key, name=key,
                              line_color=line_color)
+                    self.document.add(fig)
                     renderer = fig.select(dict(name=key))
                     self.plots[key] = renderer[0].data_source
                 else:
                     self.plots[key].data['x'].append(iteration)
                     self.plots[key].data['y'].append(value)
-                    self.push_thread.put(self.plots[key], PushThread.PUT)
-        self.push_thread.put(which_callback, PushThread.PUSH)
-
-    def _startserver(self):
-        if self.start_server:
-            def preexec_fn():
-                """Prevents the server from dying on training interrupt."""
-                signal.signal(signal.SIGINT, signal.SIG_IGN)
-            # Only memory works with subprocess, need to wait for it to start
-            logger.info('Starting plotting server on localhost:5006')
-            self.sub = Popen('bokeh-server --ip 0.0.0.0 '
-                             '--backend memory'.split(),
-                             stdout=PIPE, stderr=PIPE, preexec_fn=preexec_fn)
-            time.sleep(2)
-            logger.info('Plotting server PID: {}'.format(self.sub.pid))
-        else:
-            self.sub = None
-        output_server(self.document, url=self.server_url)
-
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        state['sub'] = None
-        state.pop('_push_thread', None)
-        return state
-
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-        self._startserver()
-        curdoc().add(*self.p)
+                    self.store(self.plots[key])
+        self.push(which_callback)
 
 
 @total_ordering
@@ -186,11 +212,11 @@ class _WorkItem(namedtuple('BaseWorkItem', ['priority', 'obj'])):
 
 
 class PushThread(Thread):
-    # Define priority constants
-    PUSH = 1
-    PUT = 2
+    PUSH, PUT = range(2)
 
-    def __init__(self):
+    def __init__(self, session, document):
+        self.session = session
+        self.document = document
         super(PushThread, self).__init__()
         self.queue = PriorityQueue()
         self.setDaemon(True)
@@ -202,11 +228,11 @@ class PushThread(Thread):
         while True:
             priority, obj = self.queue.get()
             if priority == PushThread.PUT:
-                cursession().store_objects(obj)
+                self.session.store_objects(obj)
             elif priority == PushThread.PUSH:
-                push()
+                self.session.store_document(self.document)
                 # delete queued objects when training has finished
-                if obj == "after_training":
+                if obj == 'after_training':
                     with self.queue.mutex:
                         del self.queue.queue[:]
                     break
