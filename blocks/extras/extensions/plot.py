@@ -1,7 +1,9 @@
 import logging
 import signal
 import time
+from six.moves.queue import PriorityQueue
 from subprocess import Popen, PIPE
+from threading import Thread
 
 try:
     from bokeh.plotting import (curdoc, cursession, figure, output_server,
@@ -115,7 +117,15 @@ class Plot(SimpleExtension):
 
         kwargs.setdefault('after_epoch', True)
         kwargs.setdefault("before_first_epoch", True)
+        kwargs.setdefault("after_training", True)
         super(Plot, self).__init__(**kwargs)
+
+    @property
+    def push_thread(self):
+        if not hasattr(self, '_push_thread'):
+            self._push_thread = PushThread()
+            self._push_thread.start()
+        return self._push_thread
 
     def do(self, which_callback, *args):
         log = self.main_loop.log
@@ -134,9 +144,8 @@ class Plot(SimpleExtension):
                 else:
                     self.plots[key].data['x'].append(iteration)
                     self.plots[key].data['y'].append(value)
-
-                    cursession().store_objects(self.plots[key])
-        push()
+                    self.push_thread.put(self.plots[key], PushThread.PUT)
+        self.push_thread.put(which_callback, PushThread.PUSH)
 
     def _startserver(self):
         if self.start_server:
@@ -157,9 +166,39 @@ class Plot(SimpleExtension):
     def __getstate__(self):
         state = self.__dict__.copy()
         state['sub'] = None
+        state.pop('_push_thread', None)
         return state
 
     def __setstate__(self, state):
         self.__dict__.update(state)
         self._startserver()
         curdoc().add(*self.p)
+
+
+class PushThread(Thread):
+
+    # Define priority constants
+    PUSH = 1
+    PUT = 2
+
+    def __init__(self):
+        super(PushThread, self).__init__()
+        self.queue = PriorityQueue()
+        self.setDaemon(True)
+
+    def put(self, obj, priority):
+        self.queue.put((priority, obj))
+
+    def run(self):
+        while True:
+            priority, obj = self.queue.get()
+            if priority == PushThread.PUT:
+                cursession().store_objects(obj)
+            elif priority == PushThread.PUSH:
+                push()
+                # delete queued objects when training has finished
+                if obj == "after_training":
+                    with self.queue.mutex:
+                        del self.queue.queue[:]
+                    break
+            self.queue.task_done()
