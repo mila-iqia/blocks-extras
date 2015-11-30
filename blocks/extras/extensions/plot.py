@@ -189,7 +189,10 @@ class PushThread(Thread):
     # Define priority constants
     PUSH = 1
     PUT = 2
-
+    
+    # don't push first time through (no data to plot)
+    pause = True
+    
     def __init__(self):
         super(PushThread, self).__init__()
         self.queue = PriorityQueue()
@@ -204,7 +207,10 @@ class PushThread(Thread):
             if priority == PushThread.PUT:
                 cursession().store_objects(obj)
             elif priority == PushThread.PUSH:
-                push()
+                if pause:
+                    pause = False
+                else:
+                    push()
                 # delete queued objects when training has finished
                 if obj == "after_training":
                     with self.queue.mutex:
