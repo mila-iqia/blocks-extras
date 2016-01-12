@@ -1,3 +1,4 @@
+import sys
 import logging
 
 from blocks.extensions import SimpleExtension
@@ -8,6 +9,7 @@ logger = logging.getLogger(__name__)
 class Synchronize(SimpleExtension):
     def __init__(self, job_name, control_port, sync_rule, **kwargs):
         kwargs.setdefault("before_training", True)
+        kwargs.setdefault("after_training", True)
         super(Synchronize, self).__init__(**kwargs)
 
         self.job_name = job_name
@@ -35,6 +37,8 @@ class Synchronize(SimpleExtension):
         elif (which_callback == 'after_batch' or
               which_callback == 'after_epoch'):
             self.worker.sync_params(synchronous=True)
+        elif which_callback == 'after_training':
+            self.worker.send_req('done')
 
 
 class SynchronizeController(Controller):
@@ -44,13 +48,19 @@ class SynchronizeController(Controller):
         self.parameters_initilized = False
 
     def handle_control(self, req, worker_id):
-        print req
         if req == 'init?':
+            print 'init?', worker_id
             if self.parameters_initilized:
                 return False
             else:
                 self.parameters_initilized = True
                 return True
+        elif req == 'done':
+            print 'done', worker_id
+            self.worker_is_done(worker_id)
+        else:
+            raise ValueError("Unknown request " + req)
+
 
 if __name__ == '__main__':
     import sys
