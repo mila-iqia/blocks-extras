@@ -1,6 +1,6 @@
 from blocks.utils.testing import MockMainLoop
 from blocks.extensions import SimpleExtension, FinishAfter
-from blocks.extras.extensions.plot import Plot
+from blocks_extras.extensions.plot import Plot
 
 
 def test_plot():

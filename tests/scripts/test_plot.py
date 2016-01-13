@@ -1,5 +1,5 @@
 import tempfile
-import blocks.extras.scripts.plot as plot
+import blocks_extras.scripts.plot as plot
 
 from collections import OrderedDict
 from tests import silence_printing, skip_if_not_available
