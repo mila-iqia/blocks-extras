@@ -25,14 +25,11 @@ class Synchronize(SimpleExtension):
 
     def do(self, which_callback, *args):
         if which_callback == 'before_training':
-            should_initialize = self.worker.is_main_worker
             self.worker.init_shared_params(
                 self.job_name, self.main_loop.model.parameters,
-                self.sync_rule, cleanup=should_initialize)
-            if not should_initialize:
-                for param, shared_param in zip(self.main_loop.model.parameters,
-                                               self.worker.shared_params):
-                    param.set_value(shared_param)
+                self.sync_rule, cleanup=self.worker.is_main_worker)
+            if not self.worker.is_main_worker:
+                self.worker.copy_to_local()
                 logger.debug("Copied parameters from shared")
             else:
                 logger.debug("Initialized shared parameters")
