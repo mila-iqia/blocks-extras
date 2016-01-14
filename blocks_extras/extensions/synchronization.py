@@ -9,13 +9,10 @@ from platoon.channel import Worker, Controller
 logger = logging.getLogger(__name__)
 
 class Synchronize(SimpleExtension):
-    def __init__(self, worker, job_name, sync_rule, **kwargs):
+    def __init__(self, worker, **kwargs):
         kwargs.setdefault("before_training", True)
         kwargs.setdefault("after_training", True)
         super(Synchronize, self).__init__(**kwargs)
-
-        self.job_name = job_name
-        self.sync_rule = sync_rule
         self.worker = worker
 
     def __getstate__(self):
@@ -25,13 +22,12 @@ class Synchronize(SimpleExtension):
 
     def do(self, which_callback, *args):
         if which_callback == 'before_training':
-            self.worker.init_shared_params(
-                self.job_name, self.main_loop.model.parameters,
-                self.sync_rule, cleanup=self.worker.is_main_worker)
+            self.worker.init_shared_params(self.main_loop.model.parameters)
             if not self.worker.is_main_worker:
                 self.worker.copy_to_local()
                 logger.debug("Copied parameters from shared")
             else:
+                self.worker.copy_to_global()
                 logger.debug("Initialized shared parameters")
         elif (which_callback == 'after_batch' or
               which_callback == 'after_epoch'):
@@ -42,8 +38,14 @@ class Synchronize(SimpleExtension):
 
 class SynchronizeWorker(Worker):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, job_name, sync_rule, *args, **kwargs):
+        self.job_name = job_name
+        self.sync_rule = sync_rule
         super(SynchronizeWorker, self).__init__(*args, **kwargs)
+
+    def init_shared_params(self, parameters):
+        super(SynchronizeWorker, self).init_shared_params(
+           self.job_name, parameters, self.sync_rule)
 
     @property
     def is_main_worker(self):
