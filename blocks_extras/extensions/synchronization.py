@@ -95,32 +95,31 @@ class SynchronizeController(Controller):
         self.seed_generator = numpy.random.RandomState(seed_for_seeds)
 
     def handle_control(self, req, worker_id):
+        logger.info('Request: {}, worker_id: {}'.format(req, worker_id))
+
+        response = None
         if req == 'is_main_worker?':
-            print 'is_main_worker?', worker_id
             if not self.main_worker:
                 self.main_worker = worker_id
-            result = self.main_worker == worker_id
-            print result
-            return result
+            response = self.main_worker == worker_id
         elif req == 'initialized?':
-            print 'initialized?'
-            return self.parameters_initialized
+            response = self.parameters_initialized
         elif req == 'initialized':
-            print 'initialized'
             self.parameters_initialized = True
         elif req == 'seed':
-            seed = self.seed_generator.randint(1000)
-            print 'seed', worker_id, seed
-            return seed
+            response = self.seed_generator.randint(1000)
         elif req == 'done':
-            print 'done', worker_id
             self.worker_is_done(worker_id)
         else:
             raise ValueError("Unknown request " + req)
 
+        logger.info('Response: {}'.format(response))
+        return response
+
 
 if __name__ == '__main__':
     import sys
+    logging.basicConfig(level='INFO')
     controller = SynchronizeController()
     controller.init_control(1111)
     controller.serve()
