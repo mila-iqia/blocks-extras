@@ -53,7 +53,7 @@ class SynchronizeWorker(Worker):
 
     @property
     def seed(self):
-        if not hasattr(self, '_is_seed'):
+        if not hasattr(self, '_seed'):
             self._seed = self.send_req('seed')
         return self._seed
 
