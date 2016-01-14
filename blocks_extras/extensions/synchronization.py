@@ -1,4 +1,5 @@
 import sys
+import time
 import logging
 
 import numpy
@@ -25,15 +26,16 @@ class Synchronize(SimpleExtension):
             self.worker.init_shared_params(self.main_loop.model.parameters)
             if not self.worker.is_main_worker:
                 self.worker.copy_to_local()
+                self.worker.wait_for_initialization()
                 logger.debug("Copied parameters from shared")
             else:
                 self.worker.copy_to_global()
+                self.worker.report_initialization()
                 logger.debug("Initialized shared parameters")
-        elif (which_callback == 'after_batch' or
-              which_callback == 'after_epoch'):
-            self.worker.sync_params()
         elif which_callback == 'after_training':
             self.worker.send_req('done')
+        else:
+            self.worker.sync_params()
 
 
 class SynchronizeWorker(Worker):
@@ -59,12 +61,37 @@ class SynchronizeWorker(Worker):
             self._seed = self.send_req('seed')
         return self._seed
 
+    def report_initialization(self):
+        if not self.is_main_worker:
+            raise ValueError("Only main worker can report initialization")
+        self.send_req('initialized')
+
+    def wait_for_initialization(self):
+        while not self.send_req('initialized?'):
+            time.sleep(0.01)
+
 
 class SynchronizeController(Controller):
+    """Controls synchronization of several training jobs.
 
+    This controller is necessary to make sure that:
+    - one of the workers is chosen as the main worker
+    - other workers start working only after main worker initializes all
+      the shared parameters parameters
+    - each worker receives a unique random seed, which is meant to determine
+      the order of data traversal
+
+    Parameters
+    ----------
+    seed_for_seeds : int
+        The seed to be used in the random number generator that provides
+        the seeds to the workers.
+
+    """
     def __init__(self, seed_for_seeds=1):
         super(SynchronizeController, self).__init__()
         self.main_worker = None
+        self.parameters_initialized = False
         self.seed_generator = numpy.random.RandomState(seed_for_seeds)
 
     def handle_control(self, req, worker_id):
@@ -75,6 +102,12 @@ class SynchronizeController(Controller):
             result = self.main_worker == worker_id
             print result
             return result
+        elif req == 'initialized?':
+            print 'initialized?'
+            return self.parameters_initialized
+        elif req == 'initialized':
+            print 'initialized'
+            self.parameters_initialized = True
         elif req == 'seed':
             seed = self.seed_generator.randint(1000)
             print 'seed', worker_id, seed
