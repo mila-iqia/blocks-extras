@@ -35,7 +35,7 @@ class Synchronize(SimpleExtension):
                 logger.debug("Initialized shared parameters")
         elif (which_callback == 'after_batch' or
               which_callback == 'after_epoch'):
-            self.worker.sync_params(synchronous=True)
+            self.worker.sync_params()
         elif which_callback == 'after_training':
             self.worker.send_req('done')
 
