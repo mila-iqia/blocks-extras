@@ -99,9 +99,9 @@ class SynchronizeWorker(platoon.channel.Worker):
       do episodic training-related chores, such as validation and/or
       checkpointing. Meanwhile, other workers can keep training!
     - Other workers start working only after main worker initializes all
-      the shared parameters parameters (see :meth:`seed`).
+      the shared parameters parameters (see :meth:`init_shared_params`).
     - Each worker receives a unique random seed, which is meant to
-      determine the order of data traversal (see :meth:`init_shared_params`).
+      determine the order of data traversal (see :meth:`seed`).
 
     Parameters
     ----------
@@ -188,10 +188,3 @@ class SynchronizeController(platoon.channel.Controller):
 
         logger.info('Response: {}'.format(response))
         return response
-
-
-if __name__ == '__main__':
-    logging.basicConfig(level='INFO')
-    controller = SynchronizeController()
-    controller.init_control(1111)
-    controller.serve()
