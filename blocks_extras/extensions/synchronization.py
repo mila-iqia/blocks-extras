@@ -1,4 +1,31 @@
-"""Synchronization of parameters of concurrent training processes."""
+"""Synchronization of parameters of concurrent training processes.
+
+Use this module to run several Blocks training processes
+concurrently, e.g. to perform Asynchronous SGD [DOWNPOUR_].
+It is built on top of Platoon, a simple framework that makes it easy
+to share parameters and perform communication among multiple training
+jobs. Below is the list of the key concepts introduced in Platoon:
+
+- the training process is called *worker*
+- a separate process called *controller* is sending/receiving messages
+  from/to workers and is responsible for synchronizing their activities
+- each process has its *local parameters*, which are usual Theano shared
+  variables
+- all processes share *global* parameters, which are stored in
+  shared memory (not to be confused with shared Theano variables!)
+
+For parallel training to be efficient the workers should regularly
+synchronize their local parameters with the global parameters.
+Using the components from this module you should be able to quickly
+add the required synchronization calls to your Blocks training script.
+Please see the example [sync-example_] for more details.
+
+.. [DOWNPOUR] J. Dean et al., *Large Scale Distributed Deep Networks*,
+   NIPS 2012
+
+.. [sync-example_] https://github.com/rizar/blocks-examples/blob/use_synchronize/mnist/__init__.py
+
+"""
 import time
 import logging
 
@@ -12,9 +39,7 @@ logger = logging.getLogger(__name__)
 class Synchronize(SimpleExtension):
     """Synchronize the parameters shared between multiple workers.
 
-    In Platoon each training process (worker) has its own local parameters.
-    In addition, there is a global set of parameters shared between all
-    the workers. When called, this extensions triggers synchronization
+    When called, this extensions triggers synchronization
     of global and local parameters. The special cases
     are the callbacks 'before_training', 'on_resumption' and
     'after_training'.
