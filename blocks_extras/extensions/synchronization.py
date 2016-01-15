@@ -32,7 +32,7 @@ import logging
 import numpy
 
 from blocks.extensions import SimpleExtension
-from platoon.channel import Worker, Controller
+import platoon.channel
 
 logger = logging.getLogger(__name__)
 
@@ -87,12 +87,40 @@ class Synchronize(SimpleExtension):
             self.worker.sync_params()
 
 
-class SynchronizeWorker(Worker):
+class SynchronizeWorker(platoon.channel.Worker):
+    """Extends Platoon worker to support a simple protocol.
 
-    def __init__(self, job_name, sync_rule, *args, **kwargs):
+    The particular protocol between :class:`SynchronizeController` and
+    :class:`SynchronizedWorker` provided in this module involves
+    the following communication:
+
+    - One of the workers is chosen as the main worker
+      (see :meth:`is_main_worker`). You might want to have the main worker
+      do episodic training-related chores, such as validation and/or
+      checkpointing. Meanwhile, other workers can keep training!
+    - Other workers start working only after main worker initializes all
+      the shared parameters parameters (see :meth:`seed`).
+    - Each worker receives a unique random seed, which is meant to
+      determine the order of data traversal (see :meth:`init_shared_params`).
+
+    Parameters
+    ----------
+    job_name : str
+        A job name. Should be the same for all workers that are supposed
+        to share global parameters.
+    sync_rule : instance of :class:`~platoon.param_sync.ParamSyncRule`
+        The rule for parameter synchronization.
+
+    See Also
+    --------
+    :class:`~platoon.channel.Worker`
+        For other parameters.
+
+    """
+    def __init__(self, job_name, sync_rule, **kwargs):
         self.job_name = job_name
         self.sync_rule = sync_rule
-        super(SynchronizeWorker, self).__init__(*args, **kwargs)
+        super(SynchronizeWorker, self).__init__(**kwargs)
 
     @property
     def is_main_worker(self):
@@ -120,15 +148,11 @@ class SynchronizeWorker(Worker):
             logger.debug("Copied parameters from shared")
 
 
-class SynchronizeController(Controller):
-    """Controls synchronization of several training jobs.
+class SynchronizeController(platoon.channel.Controller):
+    """Extends Platoon controller to support a simple protocol.
 
-    This controller makes sure that:
-    - one of the workers is chosen as the main worker
-    - other workers start working only after main worker initializes all
-      the shared parameters parameters
-    - each worker receives a unique random seed, which is meant to determine
-      the order of data traversal
+    Communicates with the workers as described in
+    :class:`SynchronizedWorker` documentation.
 
     Parameters
     ----------
@@ -156,7 +180,7 @@ class SynchronizeController(Controller):
         elif req == 'initialized':
             self.parameters_initialized = True
         elif req == 'seed':
-            response = self.seed_generator.randint(1000)
+            response = self.seed_generator.randint(100000)
         elif req == 'done':
             self.worker_is_done(worker_id)
         else:
