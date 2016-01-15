@@ -1,4 +1,4 @@
-import sys
+"""Synchronization of parameters of concurrent training processes."""
 import time
 import logging
 
@@ -10,8 +10,40 @@ from platoon.channel import Worker, Controller
 logger = logging.getLogger(__name__)
 
 class Synchronize(SimpleExtension):
+    """Synchronize the parameters shared between multiple workers.
+
+    In Platoon each training process (worker) has its own local parameters.
+    In addition, there is a global set of parameters shared between all
+    the workers. When called, this extensions triggers synchronization
+    of global and local parameters. The special cases
+    are the callbacks 'before_training', 'on_resumption' and
+    'after_training'.
+
+    On 'before_training' and 'on_resumption' it requests initialization
+    of the global parameters, for more details see
+    :class:`SynchronizedWorker`. On 'after_training', it notifies the
+    controller that this worker is done.
+
+    Parameters
+    ----------
+    worker : instance of :class:`SynchronizeWorker`
+        The worker object of this progress.
+
+    Notes
+    -----
+    This extensions makes it guess about the parameters by asking
+    `main_loop.model`, which effectively means that all of them must be
+    properly tagged (you get if for granted if you use bricks).
+
+    It is recommended to trigger an additional
+    synchronization after every time consuming operation, such as
+    validation or checkpointing. Otherwise you might end up using
+    very stale parameters.
+
+    """
     def __init__(self, worker, **kwargs):
         kwargs.setdefault("before_training", True)
+        kwargs.setdefault("on_resumption", True)
         kwargs.setdefault("after_training", True)
         super(Synchronize, self).__init__(**kwargs)
         self.worker = worker
@@ -24,14 +56,6 @@ class Synchronize(SimpleExtension):
     def do(self, which_callback, *args):
         if which_callback == 'before_training':
             self.worker.init_shared_params(self.main_loop.model.parameters)
-            if not self.worker.is_main_worker:
-                self.worker.copy_to_local()
-                self.worker.wait_for_initialization()
-                logger.debug("Copied parameters from shared")
-            else:
-                self.worker.copy_to_global()
-                self.worker.report_initialization()
-                logger.debug("Initialized shared parameters")
         elif which_callback == 'after_training':
             self.worker.send_req('done')
         else:
@@ -45,10 +69,6 @@ class SynchronizeWorker(Worker):
         self.sync_rule = sync_rule
         super(SynchronizeWorker, self).__init__(*args, **kwargs)
 
-    def init_shared_params(self, parameters):
-        super(SynchronizeWorker, self).init_shared_params(
-           self.job_name, parameters, self.sync_rule)
-
     @property
     def is_main_worker(self):
         if not hasattr(self, '_is_main_worker'):
@@ -61,20 +81,24 @@ class SynchronizeWorker(Worker):
             self._seed = self.send_req('seed')
         return self._seed
 
-    def report_initialization(self):
-        if not self.is_main_worker:
-            raise ValueError("Only main worker can report initialization")
-        self.send_req('initialized')
-
-    def wait_for_initialization(self):
-        while not self.send_req('initialized?'):
-            time.sleep(0.01)
+    def init_shared_params(self, parameters):
+        super(SynchronizeWorker, self).init_shared_params(
+           self.job_name, parameters, self.sync_rule)
+        if self.is_main_worker:
+            self.copy_to_global()
+            self.send_req('initialized')
+            logger.debug("Initialized shared parameters")
+        else:
+            while not self.send_req('initialized?'):
+                time.sleep(0.01)
+            self.copy_to_local()
+            logger.debug("Copied parameters from shared")
 
 
 class SynchronizeController(Controller):
     """Controls synchronization of several training jobs.
 
-    This controller is necessary to make sure that:
+    This controller makes sure that:
     - one of the workers is chosen as the main worker
     - other workers start working only after main worker initializes all
       the shared parameters parameters
@@ -118,7 +142,6 @@ class SynchronizeController(Controller):
 
 
 if __name__ == '__main__':
-    import sys
     logging.basicConfig(level='INFO')
     controller = SynchronizeController()
     controller.init_control(1111)
