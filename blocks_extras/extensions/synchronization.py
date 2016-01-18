@@ -82,8 +82,8 @@ class Synchronize(SimpleExtension):
         return state
 
     def do(self, which_callback, *args):
-        if (which_callback == 'before_training'
-                or which_callback == 'on_resumption'):
+        if (which_callback == 'before_training' or
+                which_callback == 'on_resumption'):
             self.worker.init_shared_params(self.main_loop.model.parameters)
         elif which_callback == 'after_training':
             self.worker.send_req('done')
