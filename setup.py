@@ -4,7 +4,7 @@ setup(
     name='blocks_extras',
     install_requires=['blocks'],
     packages=find_packages(),
-    scripts=['bin/blocks-plot'],
+    scripts=['bin/blocks-plot', 'bin/blocks-controller'],
     extras_require={'plot': ['bokeh']},
     zip_safe=False
 )
