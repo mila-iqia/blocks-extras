@@ -29,8 +29,9 @@ A Note about ``Plot``
 Due to significant architectural changes upstream in Bokeh_, the `Plot` extension
 is currently incompatible with Bokeh ≥ 0.11. A reimagined ``Plot`` extension will
 probably require some sort of data storage backend of its own. Please see
-``blocks-extras`` issue #35 if you are interested in helping move this situation
+``blocks-extras`` issue `#35`_ if you are interested in helping move this situation
 forward. Until then, please use Bokeh 0.10 if you are interested in using the `Plot`
 extension.
 
 .. _Bokeh: http://bokeh.pydata.org/
+.. _#35: http://github.com/mila-udem/blocks-extras/issues/35
