@@ -108,9 +108,9 @@ class SoftmaxReadout(Readout, Random):
             'groundtruth', 'groundtruth_mask']
         self.all_scores.inputs = ['prediction']
         self.scores.inputs = self.sample.inputs = []
-        for application in [self.costs, self.all_scores,
-                            self.scores, self.sample]:
-            application.inputs += self.merged_states
+        for application_method in [self.costs, self.all_scores,
+                                   self.scores, self.sample]:
+            application_method.inputs += self.merged_states
 
         self.sample.outputs = 'samples'
 
@@ -199,7 +199,7 @@ class SequenceGenerator(Initializable):
         self.generate.states = self.recurrent.apply.states
         self.generate.contexts = self.recurrent.apply.contexts
         # TODO: allow recurrent to have outputs
-        self.generate.outputs = ['samples'] + self.generate.states
+        self.generate.outputs = ['samples'] + self.recurrent.apply.outputs
         self.initial_states.outputs = self.recurrent.initial_states.outputs
 
     def _push_allocation_config(self):
@@ -214,29 +214,30 @@ class SequenceGenerator(Initializable):
     def costs(self, application_call,
               prediction, groundtruth=None,
               prediction_mask=None, groundtruth_mask=None,
-              **inputs_states_contexts):
+              **sequences_states_contexts):
         feedback = self.feedback.apply(prediction, as_dict=True)
-        states = self.recurrent.apply(
+        states_outputs = self.recurrent.apply(
             mask=prediction_mask, return_initial_states=True, as_dict=True,
             # Using dict_union gives us a free sanity check that
             # the feedback entries do not override the ones
-            # from input_states_contexts
-            **dict_union(feedback, inputs_states_contexts))
-        states = {name: states[name][:-1] for name in states}
+            # from sequences_states_contexts
+            **dict_union(feedback, sequences_states_contexts))
+        states_outputs = {name: states_outputs[name][:-1]
+                          for name in states_outputs}
 
-        for name, variable in list(states.items()):
+        for name, variable in list(states_outputs.items()):
             application_call.add_auxiliary_variable(
                 variable.copy(), name=name)
         # These variables can be used to initialize the initial states of the
         # next batch using the last states of the current batch.
-        for name in states:
+        for name in states_outputs:
             application_call.add_auxiliary_variable(
-                states[name][-1].copy(), name=name+"_final_value")
+                states_outputs[name][-1].copy(), name=name+"_final_value")
 
         return self.readout.costs(
             prediction, prediction_mask,
             groundtruth, groundtruth_mask,
-            **dict_subset(states, self.readout.costs.inputs,
+            **dict_subset(states_outputs, self.readout.costs.inputs,
                           must_have=False))
 
     @recurrent
@@ -246,10 +247,10 @@ class SequenceGenerator(Initializable):
             must_have=False)
         sample = self.readout.sample(**sampling_inputs)
         feedback = self.feedback.apply(sample, as_dict=True)
-        next_states = self.recurrent.apply(
+        next_states_outputs = self.recurrent.apply(
             as_list=True, iterate=False,
             **dict_union(feedback, **sequences_states_contexts))
-        return [sample] + next_states
+        return [sample] + next_states_outputs
 
     @application
     def initial_states(self, batch_size, *args, **kwargs):
