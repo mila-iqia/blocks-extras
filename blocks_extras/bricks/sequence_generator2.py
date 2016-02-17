@@ -154,10 +154,13 @@ class Feedback(Initializable):
 
     """
     @lazy(allocation=['feedback_sequences', 'sequence_dims'])
-    def __init__(self, feedback_sequences, sequence_dims, **kwargs):
+    def __init__(self, feedback_sequences, sequence_dims, embedding=None,
+                 **kwargs):
         super(Feedback, self).__init__(**kwargs)
         self.feedback_sequences = feedback_sequences
         self.sequence_dims = sequence_dims
+
+        self.embedding = embedding
         self.fork = None
         if len(feedback_sequences) > 1:
             self.fork = Fork(self.feedback_sequences)
@@ -165,33 +168,23 @@ class Feedback(Initializable):
         self.apply.inputs = ['input']
         self.apply.outputs = feedback_sequences
 
-    @abstractmethod
-    def _embed(self, symbols):
-        pass
-
-    @application
-    def apply(self, symbols):
-        if self.fork:
-            return self.fork.apply(self._embed(symbols))
-        return self._embed(symbols)
-
-
-@add_metaclass(ABCMeta)
-class LookupFeedback(Feedback):
-    def __init__(self, lookup, **kwargs):
-        super(LookupFeedback, self).__init__(**kwargs)
-        self.lookup = lookup
-        self.children += [lookup]
+        self.children = [self.embedding, self.fork]
+        self.children = [child for child in self.children if child]
 
     def _push_allocation_config(self):
         if self.fork:
             self.fork.output_dims = self.sequence_dims
         else:
-            self.lookup.dim, = self.sequence_dims
+            self.embedding.output_dim, = self.sequence_dims
 
     @application
-    def _embed(self, symbols):
-        return self.lookup.apply(symbols)
+    def apply(self, symbols):
+        embedded_symbols = symbols
+        if self.embedding:
+            embedded_symbols = self.embedding.apply(symbols)
+        if self.fork:
+            return self.fork.apply(embedded_symbols)
+        return embedded_symbols
 
 
 class SequenceGenerator(Initializable):
