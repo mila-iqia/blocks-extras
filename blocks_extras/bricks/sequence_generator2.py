@@ -4,23 +4,23 @@ This module provides bricks that make it simple to generate sequences
 with recurrent networks. Example of things that you can do with it
 include language modelling, speech synthesis, machine translation.
 
-In the terminology of this module, making a sequence generator from a
-recurrent brick networks amounts to adding a *readout* to it. The readout
+Making a sequence generator from a recurrent brick amounts
+to choosing a *readout* brick and a *feedback* brick. The readout brick
 defines
 
-- a differentiable *cost* associated with outputing a *prediction*, when
+- a differentiable *cost* associated with outputting a *prediction*, when
 the corrent sequence was *groundtruth*
 
-- how the generated symbols are used as input of the recurrent brick at
-the next step, i.e. how they are *fed back*.
+- how the network outputs *scores* for the next symbol given the
+states of the recurrent brick
 
-- how the network outputs *scores* for the next symbol given all
-inputs, contexts and the previous symbols
+- (optionally) how the next symbol can be sampled given the states
 
-- TODO: emit
+The feedback brick defines how inputs of recurrent brick are computed
+from output symbols.
 
-A :class:`SequenceGenerator` object combines a recurrent brick and a
-readout of your choice.
+Please note, that elements of the output sequence can also be continuous
+values or vectors, provided that suitable readout and feedback are chosen.
 
 """
 from abc import ABCMeta, abstractmethod
@@ -28,7 +28,6 @@ from six import add_metaclass
 
 from blocks.bricks.base import lazy, application
 from blocks.bricks.recurrent import recurrent
-from blocks.bricks.lookup import LookupTable
 from blocks.bricks.simple import (
     Bias, Initializable, Random, NDimensionalSoftmax)
 from blocks.bricks.parallel import Merge, Fork
@@ -117,7 +116,7 @@ class SoftmaxReadout(Readout, Random):
 
     @application
     def costs(self, prediction, prediction_mask,
-             groundtruth, groundtruth_mask, **all_states):
+              groundtruth, groundtruth_mask, **all_states):
         log_probs = self.all_scores(prediction, **all_states)
         if not prediction_mask:
             prediction_mask = 1
