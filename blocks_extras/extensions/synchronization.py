@@ -137,15 +137,6 @@ class SynchronizeWorker(platoon.channel.Worker):
     def init_shared_params(self, parameters):
         super(SynchronizeWorker, self).init_shared_params(
             parameters, self.sync_rule)
-        if self.is_main_worker:
-            self.copy_to_global()
-            self.send_req('initialized')
-            logger.debug("Initialized shared parameters")
-        else:
-            while not self.send_req('initialized?'):
-                time.sleep(0.01)
-            self.copy_to_local()
-            logger.debug("Copied parameters from shared")
 
 
 class SynchronizeController(platoon.channel.Controller):
@@ -169,7 +160,6 @@ class SynchronizeController(platoon.channel.Controller):
     def __init__(self, seed_for_seeds=1, **kwargs):
         super(SynchronizeController, self).__init__(**kwargs)
         self.main_worker = None
-        self.parameters_initialized = False
         self.seed_generator = numpy.random.RandomState(seed_for_seeds)
 
     def handle_control(self, req, worker_id):
@@ -180,10 +170,6 @@ class SynchronizeController(platoon.channel.Controller):
             if not self.main_worker:
                 self.main_worker = worker_id
             response = self.main_worker == worker_id
-        elif req == 'initialized?':
-            response = self.parameters_initialized
-        elif req == 'initialized':
-            self.parameters_initialized = True
         elif req == 'seed':
             response = self.seed_generator.randint(100000)
         elif req == 'done':
