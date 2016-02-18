@@ -223,7 +223,7 @@ class AttentionRecurrent(Initializable):
         glimpses = dict_subset(kwargs, self._glimpse_names, pop=True)
 
         current_states = self.compute_states(
-            as_list=True,
+            as_dict=True,
             **dict_union(sequences, states, glimpses, kwargs))
         current_glimpses = self.take_glimpses(
             as_dict=True,
@@ -232,7 +232,7 @@ class AttentionRecurrent(Initializable):
                 {self.attended_name: attended,
                  self.attended_mask_name: attended_mask,
                  self.preprocessed_attended_name: preprocessed_attended}))
-        return current_states + list(current_glimpses.values())
+        return list(current_states.values()) + list(current_glimpses.values())
 
     @do_apply.property('sequences')
     def do_apply_sequences(self):
