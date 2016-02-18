@@ -228,7 +228,7 @@ class AttentionRecurrent(Initializable):
         current_glimpses = self.take_glimpses(
             as_dict=True,
             **dict_union(
-                states, glimpses,
+                current_states, glimpses,
                 {self.attended_name: attended,
                  self.attended_mask_name: attended_mask,
                  self.preprocessed_attended_name: preprocessed_attended}))
