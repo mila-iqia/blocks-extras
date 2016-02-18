@@ -120,7 +120,7 @@ class SoftmaxReadout(Readout, Random):
         log_probs = self.all_scores(prediction, **all_states)
         if not prediction_mask:
             prediction_mask = 1
-        return -(log_probs * prediction_mask).mean(axis=0)
+        return -(log_probs * prediction_mask).sum(axis=0)
 
     @application
     def all_scores(self, prediction, **all_states):
@@ -212,8 +212,8 @@ class SequenceGenerator(Initializable):
 
     @application
     def costs(self, application_call,
-              prediction, groundtruth=None,
-              prediction_mask=None, groundtruth_mask=None,
+              prediction, prediction_mask=None,
+              groundtruth=None, groundtruth_mask=None,
               **sequences_states_contexts):
         feedback = self.feedback.apply(prediction, as_dict=True)
         states_outputs = self.recurrent.apply(
@@ -261,3 +261,4 @@ class SequenceGenerator(Initializable):
         if name == 'samples':
             return self.readout.get_dim(name)
         return self.recurrent.get_dim(name)
+
