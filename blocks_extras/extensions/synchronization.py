@@ -28,7 +28,6 @@ Please see the example [sync-example_] for more details.
     use_synchronize/mnist/__init__.py
 
 """
-import time
 import logging
 
 import numpy
@@ -102,8 +101,6 @@ class SynchronizeWorker(platoon.channel.Worker):
       (see :meth:`is_main_worker`). You might want to have the main worker
       do episodic training-related chores, such as validation and/or
       checkpointing. Meanwhile, other workers can keep training!
-    - Other workers start working only after main worker initializes all
-      the shared parameters parameters (see :meth:`init_shared_params`).
     - Each worker receives a unique random seed, which is meant to
       determine the order of data traversal (see :meth:`seed`).
 
