@@ -72,7 +72,8 @@ class Readout(Initializable):
         self.post_merge.output_dim = self.dim
 
     @abstractmethod
-    def costs(self, prediction, groundtruth, **states):
+    def costs(self, prediction, prediction_mask,
+              groundtruth, groundtruth_mask, **states):
         pass
 
     @abstractmethod
@@ -112,7 +113,7 @@ class SoftmaxReadout(Readout, Random):
                                    self.scores, self.sample]:
             application_method.inputs += self.merged_states
 
-        self.sample.outputs = 'samples'
+        self.sample.outputs = ['samples', 'scores']
 
     @application
     def costs(self, prediction, prediction_mask,
@@ -133,11 +134,13 @@ class SoftmaxReadout(Readout, Random):
 
     @application
     def sample(self, **states):
-        probs = tensor.exp(self.scores(**states))
-        return self.theano_rng.multinomial(pvals=probs).argmax(axis=1)
+        scores = self.scores(**states)
+        probs = tensor.exp(scores)
+        sample = self.theano_rng.multinomial(pvals=probs).argmax(axis=1)
+        return sample, scores[tensor.arange(probs.shape[0]), sample]
 
     def get_dim(self, name):
-        if name == 'samples':
+        if name == 'samples' or 'scores':
             return 0
         return super(SoftmaxReadout, self).get_dim(name)
 
@@ -199,7 +202,8 @@ class SequenceGenerator(Initializable):
         self.generate.states = self.recurrent.apply.states
         self.generate.contexts = self.recurrent.apply.contexts
         # TODO: allow recurrent to have outputs
-        self.generate.outputs = ['samples'] + self.recurrent.apply.outputs
+        self.generate.outputs = (['samples', 'scores'] +
+                                 self.recurrent.apply.outputs)
         self.initial_states.outputs = self.recurrent.initial_states.outputs
 
     def _push_allocation_config(self):
@@ -245,12 +249,12 @@ class SequenceGenerator(Initializable):
         sampling_inputs = dict_subset(
             sequences_states_contexts, self.readout.sample.inputs,
             must_have=False)
-        sample = self.readout.sample(**sampling_inputs)
-        feedback = self.feedback.apply(sample, as_dict=True)
+        samples, scores = self.readout.sample(**sampling_inputs)
+        feedback = self.feedback.apply(samples, as_dict=True)
         next_states_outputs = self.recurrent.apply(
             as_list=True, iterate=False,
             **dict_union(feedback, **sequences_states_contexts))
-        return [sample] + next_states_outputs
+        return [samples, scores] + next_states_outputs
 
     @application
     def initial_states(self, batch_size, *args, **kwargs):
@@ -258,7 +262,7 @@ class SequenceGenerator(Initializable):
                                              *args, **kwargs)
 
     def get_dim(self, name):
-        if name == 'samples':
+        if name == 'samples' or name == 'scores':
             return self.readout.get_dim(name)
         return self.recurrent.get_dim(name)
 
