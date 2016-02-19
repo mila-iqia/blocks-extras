@@ -28,7 +28,6 @@ Please see the example [sync-example_] for more details.
     use_synchronize/mnist/__init__.py
 
 """
-import time
 import logging
 
 import numpy
@@ -102,8 +101,6 @@ class SynchronizeWorker(platoon.channel.Worker):
       (see :meth:`is_main_worker`). You might want to have the main worker
       do episodic training-related chores, such as validation and/or
       checkpointing. Meanwhile, other workers can keep training!
-    - Other workers start working only after main worker initializes all
-      the shared parameters parameters (see :meth:`init_shared_params`).
     - Each worker receives a unique random seed, which is meant to
       determine the order of data traversal (see :meth:`seed`).
 
@@ -137,15 +134,6 @@ class SynchronizeWorker(platoon.channel.Worker):
     def init_shared_params(self, parameters):
         super(SynchronizeWorker, self).init_shared_params(
             parameters, self.sync_rule)
-        if self.is_main_worker:
-            self.copy_to_global()
-            self.send_req('initialized')
-            logger.debug("Initialized shared parameters")
-        else:
-            while not self.send_req('initialized?'):
-                time.sleep(0.01)
-            self.copy_to_local()
-            logger.debug("Copied parameters from shared")
 
 
 class SynchronizeController(platoon.channel.Controller):
@@ -169,7 +157,6 @@ class SynchronizeController(platoon.channel.Controller):
     def __init__(self, seed_for_seeds=1, **kwargs):
         super(SynchronizeController, self).__init__(**kwargs)
         self.main_worker = None
-        self.parameters_initialized = False
         self.seed_generator = numpy.random.RandomState(seed_for_seeds)
 
     def handle_control(self, req, worker_id):
@@ -180,10 +167,6 @@ class SynchronizeController(platoon.channel.Controller):
             if not self.main_worker:
                 self.main_worker = worker_id
             response = self.main_worker == worker_id
-        elif req == 'initialized?':
-            response = self.parameters_initialized
-        elif req == 'initialized':
-            self.parameters_initialized = True
         elif req == 'seed':
             response = self.seed_generator.randint(100000)
         elif req == 'done':
