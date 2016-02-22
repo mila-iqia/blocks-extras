@@ -156,16 +156,17 @@ class Feedback(Initializable):
 
     """
     @lazy(allocation=['feedback_sequences', 'sequence_dims'])
-    def __init__(self, feedback_sequences, sequence_dims, embedding=None,
+    def __init__(self, feedback_sequences, sequence_dims,
+                 embedding=None, input_dim=0,
                  **kwargs):
         super(Feedback, self).__init__(**kwargs)
+
         self.feedback_sequences = feedback_sequences
         self.sequence_dims = sequence_dims
+        self.input_dim = input_dim
 
         self.embedding = embedding
-        self.fork = None
-        if len(feedback_sequences) > 1:
-            self.fork = Fork(self.feedback_sequences)
+        self.fork = Fork(self.feedback_sequences)
 
         self.apply.inputs = ['input']
         self.apply.outputs = feedback_sequences
@@ -178,6 +179,11 @@ class Feedback(Initializable):
             self.fork.output_dims = self.sequence_dims
         else:
             self.embedding.output_dim, = self.sequence_dims
+        if self.embedding:
+            self.embedding.input_dim = self.input_dim
+            self.fork.input_dim = self.embedding.output_dim
+        else:
+            self.fork.input_dim = self.input_dim
 
     @application
     def apply(self, symbols):
