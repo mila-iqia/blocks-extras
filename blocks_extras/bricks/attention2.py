@@ -94,6 +94,13 @@ class AttentionRecurrent(Initializable):
             name for name in self._glimpse_names
             if name in self.attention.take_glimpses.inputs]
 
+        self.do_apply.sequences = self._sequence_names
+        self.do_apply.contexts = (self._context_names +
+                                  [self.preprocessed_attended_name])
+        self.do_apply.states = self._state_names + self._glimpse_names
+        self.do_apply.outputs =  self._state_names + self._glimpse_names
+        self.initial_states.outputs = self.do_apply.states
+
         self.children = [self.transition, self.attention, self.distribute]
 
     def _push_allocation_config(self):
@@ -159,22 +166,6 @@ class AttentionRecurrent(Initializable):
                  self.preprocessed_attended_name: preprocessed_attended}))
         return list(current_states.values()) + list(current_glimpses.values())
 
-    @do_apply.property('sequences')
-    def do_apply_sequences(self):
-        return self._sequence_names
-
-    @do_apply.property('contexts')
-    def do_apply_contexts(self):
-        return self._context_names + [self.preprocessed_attended_name]
-
-    @do_apply.property('states')
-    def do_apply_states(self):
-        return self._state_names + self._glimpse_names
-
-    @do_apply.property('outputs')
-    def do_apply_outputs(self):
-        return self._state_names + self._glimpse_names
-
     @application
     def apply(self, **kwargs):
         """Preprocess a sequence attending the attended context at every step.
@@ -205,10 +196,6 @@ class AttentionRecurrent(Initializable):
                      batch_size, **kwargs)) +
                 pack(self.attention.initial_glimpses(
                      batch_size, kwargs[self.attended_name])))
-
-    @initial_states.property('outputs')
-    def initial_states_outputs(self):
-        return self.do_apply.states
 
     def get_dim(self, name):
         if name in self._glimpse_names:
