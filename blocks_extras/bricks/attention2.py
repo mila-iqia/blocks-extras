@@ -114,85 +114,6 @@ class AttentionRecurrent(Initializable):
         self.distribute.target_dims = self.transition.get_dims(
             self.distribute.target_names)
 
-    @application
-    def take_glimpses(self, **kwargs):
-        r"""Compute glimpses with the attention mechanism.
-
-        A thin wrapper over `self.attention.take_glimpses`: takes care
-        of choosing and renaming the necessary arguments.
-
-        Parameters
-        ----------
-        \*\*kwargs
-            Must contain the attended, previous step states and glimpses.
-            Can optionaly contain the attended mask and the preprocessed
-            attended.
-
-        Returns
-        -------
-        glimpses : list of :class:`~tensor.TensorVariable`
-            Current step glimpses.
-
-        """
-        states = dict_subset(kwargs, self._state_names, pop=True)
-        glimpses = dict_subset(kwargs, self._glimpse_names, pop=True)
-        glimpses_needed = dict_subset(glimpses, self.previous_glimpses_needed)
-        result = self.attention.take_glimpses(
-            kwargs.pop(self.attended_name),
-            kwargs.pop(self.preprocessed_attended_name, None),
-            kwargs.pop(self.attended_mask_name, None),
-            **dict_union(states, glimpses_needed))
-        # At this point kwargs may contain additional items.
-        # e.g. AttentionRecurrent.transition.apply.contexts
-        return result
-
-    @take_glimpses.property('outputs')
-    def take_glimpses_outputs(self):
-        return self._glimpse_names
-
-    @application
-    def compute_states(self, **kwargs):
-        r"""Compute current states when glimpses have already been computed.
-
-        Combines an application of the `distribute` that alter the
-        sequential inputs of the wrapped transition and an application of
-        the wrapped transition. All unknown keyword arguments go to
-        the wrapped transition.
-
-        Parameters
-        ----------
-        \*\*kwargs
-            Should contain everything what `self.transition` needs
-            and in addition the current glimpses.
-
-        Returns
-        -------
-        current_states : list of :class:`~tensor.TensorVariable`
-            Current states computed by `self.transition`.
-
-        """
-        # make sure we are not popping the mask
-        normal_inputs = [name for name in self._sequence_names
-                         if 'mask' not in name]
-        sequences = dict_subset(kwargs, normal_inputs, pop=True)
-        glimpses = dict_subset(kwargs, self._glimpse_names, pop=True)
-        if self.add_contexts:
-            kwargs.pop(self.attended_name)
-            # attended_mask_name can be optional
-            kwargs.pop(self.attended_mask_name, None)
-
-        sequences.update(self.distribute.apply(
-            as_dict=True, **dict_subset(dict_union(sequences, glimpses),
-                                        self.distribute.apply.inputs)))
-        current_states = self.transition.apply(
-            iterate=False, as_list=True,
-            **dict_union(sequences, kwargs))
-        return current_states
-
-    @compute_states.property('outputs')
-    def compute_states_outputs(self):
-        return self._state_names
-
     @recurrent
     def do_apply(self, **kwargs):
         r"""Process a sequence attending the attended context every step.
@@ -217,18 +138,32 @@ class AttentionRecurrent(Initializable):
         attended = kwargs[self.attended_name]
         preprocessed_attended = kwargs.pop(self.preprocessed_attended_name)
         attended_mask = kwargs.get(self.attended_mask_name)
+        if self.add_contexts:
+            kwargs.pop(self.attended_name)
+            kwargs.pop(self.attended_mask_name, None)
         sequences = dict_subset(kwargs, self._sequence_names, pop=True,
                                 must_have=False)
         states = dict_subset(kwargs, self._state_names, pop=True)
         glimpses = dict_subset(kwargs, self._glimpse_names, pop=True)
+        # By this time **kwargs will contain only the contexts of
+        # the transition
 
-        current_states = self.compute_states(
-            as_dict=True,
-            **dict_union(sequences, states, glimpses, kwargs))
-        current_glimpses = self.take_glimpses(
+        # Compute next states
+        sequences_without_mask = {
+            name: variable for name, variable in sequences.items()
+            if not 'mask' in name}
+        sequences.update(self.distribute.apply(
+            as_dict=True, **dict_subset(dict_union(sequences_without_mask, glimpses),
+                                        self.distribute.apply.inputs)))
+        current_states = self.transition.apply(
+            iterate=False, as_dict=True,
+            **dict_union(sequences, states, kwargs))
+
+        glimpses_needed = dict_subset(glimpses, self.previous_glimpses_needed)
+        current_glimpses = self.attention.take_glimpses(
             as_dict=True,
             **dict_union(
-                current_states, glimpses,
+                current_states, glimpses_needed,
                 {self.attended_name: attended,
                  self.attended_mask_name: attended_mask,
                  self.preprocessed_attended_name: preprocessed_attended}))
