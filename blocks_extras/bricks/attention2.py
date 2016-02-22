@@ -13,13 +13,10 @@ class AttentionRecurrent(Initializable):
     recurrent transition for these purposes and not add any new ones,
     see `add_context` parameter.
 
-    At the beginning of each step attention mechanism produces glimpses;
-    these glimpses together with the current states are used to compute the
-    next state and finish the transition. In some cases glimpses from the
-    previous steps are also necessary for the attention mechanism, e.g.
-    in order to focus on an area close to the one from the previous step.
-    This is also supported: such glimpses become states of the new
-    transition.
+    At the beginning of each step the glimpses from the previous step
+    are used to do the transition. After that, new glimpses are computed
+    based on the new state of the recurrent network and using the glimpses
+    from the previous step.
 
     To let the user control the way glimpses are used, this brick also
     takes a "distribute" brick as parameter that distributes the
@@ -53,12 +50,6 @@ class AttentionRecurrent(Initializable):
     Notes
     -----
     See :class:`.Initializable` for initialization parameters.
-
-    Wrapping your recurrent brick with this class makes all the
-    states mandatory. If you feel this is a limitation for you, try
-    to make it better! This restriction does not apply to sequences
-    and contexts: those keep being as optional as they were for
-    your brick.
 
     Those coming to Blocks from Groundhog might recognize that this is
     a `RecurrentLayerWithSearch`, but on steroids :)
@@ -143,10 +134,9 @@ class AttentionRecurrent(Initializable):
             kwargs.pop(self.attended_mask_name, None)
         sequences = dict_subset(kwargs, self._sequence_names, pop=True,
                                 must_have=False)
-        states = dict_subset(kwargs, self._state_names, pop=True)
         glimpses = dict_subset(kwargs, self._glimpse_names, pop=True)
-        # By this time **kwargs will contain only the contexts of
-        # the transition
+        # By this time **kwargs will contain the states and the contexts
+        # of the transition
 
         # Compute next states
         sequences_without_mask = {
@@ -157,7 +147,7 @@ class AttentionRecurrent(Initializable):
                                         self.distribute.apply.inputs)))
         current_states = self.transition.apply(
             iterate=False, as_dict=True,
-            **dict_union(sequences, states, kwargs))
+            **dict_union(sequences, kwargs))
 
         glimpses_needed = dict_subset(glimpses, self.previous_glimpses_needed)
         current_glimpses = self.attention.take_glimpses(
