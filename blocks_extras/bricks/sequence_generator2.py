@@ -108,7 +108,8 @@ class SoftmaxReadout(Readout, Random):
             'prediction', 'prediction_mask',
             'groundtruth', 'groundtruth_mask']
         self.all_scores.inputs = ['prediction']
-        self.scores.inputs = self.sample.inputs = []
+        self.scores.inputs = []
+        self.sample.inputs = []
         for application_method in [self.costs, self.all_scores,
                                    self.scores, self.sample]:
             application_method.inputs += self.merged_states
