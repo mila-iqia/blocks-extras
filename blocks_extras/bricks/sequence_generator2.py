@@ -233,17 +233,18 @@ class SequenceGenerator(Initializable):
             # the feedback entries do not override the ones
             # from sequences_states_contexts
             **dict_union(feedback, sequences_states_contexts))
-        states_outputs = {name: states_outputs[name][:-1]
-                          for name in states_outputs}
-
-        for name, variable in list(states_outputs.items()):
-            application_call.add_auxiliary_variable(
-                variable.copy(), name=name)
         # These variables can be used to initialize the initial states of the
         # next batch using the last states of the current batch.
         for name in states_outputs:
             application_call.add_auxiliary_variable(
                 states_outputs[name][-1].copy(), name=name+"_final_value")
+        # Discard the final states
+        for name in self.recurrent.apply.states:
+            states_outputs[name] = states_outputs[name][:-1]
+        # Add all states and outputs and auxiliary variables
+        for name, variable in list(states_outputs.items()):
+            application_call.add_auxiliary_variable(
+                variable.copy(), name=name)
 
         return self.readout.costs(
             prediction, prediction_mask,
