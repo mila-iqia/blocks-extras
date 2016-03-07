@@ -139,9 +139,7 @@ class MergeReadout(AbstractReadout):
 
     @application
     def merge(self, **inputs):
-        merged = self.merge_brick.apply(
-            **{name: inputs[name]
-               for name in self.merge_brick.input_names})
+        merged = self.merge_brick.apply(**inputs)
         merged = self.post_merge.apply(merged)
         return merged
 
@@ -177,7 +175,7 @@ class SoftmaxReadout(MergeReadout, Random):
     def costs(self, prediction, prediction_mask,
               groundtruth, groundtruth_mask, **inputs):
         log_probs = self.all_scores(
-            prediction, self.merge(**dict_subset(inputs, self.merge_inputs)))
+            prediction, self.merge(**dict_subset(inputs, self.merge_names)))
         if not prediction_mask:
             prediction_mask = 1
         return -(log_probs * prediction_mask).sum(axis=0)
