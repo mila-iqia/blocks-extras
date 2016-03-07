@@ -99,15 +99,16 @@ class MergeReadout(AbstractReadout):
 
         self.merge_names = merge_names
         self.merge_dim = merge_dim
-        self.merge = merge
+        self.merge_brick = merge
         self.post_merge = post_merge
         self.post_merge_dim = post_merge_dim
 
-        self.children = [self.merge, self.post_merge]
+        self.children = [self.merge_brick, self.post_merge]
 
     def _push_allocation_config(self):
-        self.merge.input_dims = self.input_dims
-        self.merge.output_dim = self.merge_dim
+        self.merge_brick.input_dims = [
+            self.get_dim(name) for name in self.merge_names]
+        self.merge_brick.output_dim = self.merge_dim
         self.post_merge.input_dim = self.merge_dim
         self.post_merge.output_dim = self.post_merge_dim
 
@@ -137,11 +138,17 @@ class MergeReadout(AbstractReadout):
         pass
 
     @application
-    def _merge(self, **inputs):
-        merged = self.merge.apply(**{name: inputs[name]
-                                     for name in self.merge.input_names})
+    def merge(self, **inputs):
+        merged = self.merge_brick.apply(**{name: inputs[name]
+                                     for name in self.merge_brick.input_names})
         merged = self.post_merge.apply(merged)
         return merged
+
+    def get_dim(self, name):
+        try:
+            return self.input_dims[self.input_names.index(name)]
+        except ValueError:
+            return super(MergeReadout, self).get_dim(name)
 
 
 class SoftmaxReadout(MergeReadout, Random):
@@ -168,20 +175,20 @@ class SoftmaxReadout(MergeReadout, Random):
     @application
     def costs(self, prediction, prediction_mask,
               groundtruth, groundtruth_mask, **inputs):
-        log_probs = self.all_scores(prediction, **inputs)
+        log_probs = self.all_scores(
+            prediction, self.merge(**dict_subset(inputs, self.merge_inputs)))
         if not prediction_mask:
             prediction_mask = 1
         return -(log_probs * prediction_mask).sum(axis=0)
 
     @application
-    def all_scores(self, prediction, **inputs):
+    def all_scores(self, prediction, merged):
         return -self.softmax.categorical_cross_entropy(
-            prediction, self._merge(**dict_subset(inputs, self.merge_names)),
-            extra_ndim=1)
+            prediction, merged, extra_ndim=1)
 
     @application
     def scores(self, **inputs):
-        return self.softmax.log_probabilities(self._merge(**inputs))
+        return self.softmax.log_probabilities(self.merge(**inputs))
 
     @application
     def sample(self, **inputs):
@@ -191,7 +198,7 @@ class SoftmaxReadout(MergeReadout, Random):
         return sample, scores[tensor.arange(probs.shape[0]), sample]
 
     def get_dim(self, name):
-        if name == 'samples' or 'scores':
+        if name == 'samples' or name == 'scores':
             return 0
         return super(SoftmaxReadout, self).get_dim(name)
 
