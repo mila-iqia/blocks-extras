@@ -37,70 +37,119 @@ from theano import tensor
 
 
 @add_metaclass(ABCMeta)
-class Readout(Initializable):
-    """Readout.
+class AbstractReadout(Initializable):
+    """The interface for the readout component of a sequence generator.
+
+    Attributes
+    ----------
+    input_names : dict
+    input_dims : dict
 
     """
-    @lazy(allocation=['dim', 'state_dims', 'merged_dim', 'merged_states'])
-    def __init__(self, dim, state_dims, merged_dim, merged_states,
-                 merge=None, merge_prototype=None,
-                 post_merge=None, **kwargs):
-        super(Readout, self).__init__(**kwargs)
+    @lazy(allocation=['input_dims'])
+    def __init__(self, input_names, input_dims, **kwargs):
+        self.input_names = input_names
+        self.input_dims = input_dims
+        super(AbstractReadout, self).__init__(**kwargs)
 
+    @abstractmethod
+    def costs(self, prediction, prediction_mask,
+            groundtruth, groundtruth_mask, **inputs):
+        """Compute the costs.
+
+        Can accept sequences and contexts to compute complicated costs
+        such as e.g. REINFORCE with baseline.
+
+        """
+        pass
+
+    @abstractmethod
+    def scores(self, **inputs):
+        """Compute the score for all possible next tokens.
+
+        This is only needed for the beam search and can only be implement
+        for discrete output tokens.
+
+        """
+        pass
+
+    @abstractmethod
+    def sample(self, **inputs):
+        pass
+
+
+@add_metaclass(ABCMeta)
+class MergeReadout(AbstractReadout):
+    """Readout that merges its inputs first."""
+    @lazy(allocation=['merge_dim', 'post_merge_dim'])
+    def __init__(self, merge_dim, post_merge_dim,
+                 merge_names=None,  merge=None, merge_prototype=None,
+                 post_merge=None, **kwargs):
+        super(MergeReadout, self).__init__(**kwargs)
+
+        if not merge_dim:
+            merge_dim = post_merge_dim
+        if not merge_names:
+            merge_names = kwargs['input_names']
         if not merge:
-            merge = Merge(input_names=merged_states,
+            merge = Merge(input_names=merge_names,
                           prototype=merge_prototype)
         if not post_merge:
-            post_merge = Bias(dim=dim)
-        if not merged_dim:
-            merged_dim = dim
+            post_merge = Bias(dim=post_merge_dim)
 
-        self.dim = dim
-        self.state_dims = state_dims
-        self.merged_dim = merged_dim
-        self.merged_states = merged_states
+        self.merge_names = merge_names
+        self.merge_dim = merge_dim
         self.merge = merge
         self.post_merge = post_merge
+        self.post_merge_dim = post_merge_dim
 
         self.children = [self.merge, self.post_merge]
 
     def _push_allocation_config(self):
-        self.merge.input_names = self.merged_states
-        self.merge.input_dims = self.state_dims
-        self.merge.output_dim = self.merged_dim
-        self.post_merge.input_dim = self.merged_dim
-        self.post_merge.output_dim = self.dim
+        self.merge.input_dims = self.input_dims
+        self.merge.output_dim = self.merge_dim
+        self.post_merge.input_dim = self.merge_dim
+        self.post_merge.output_dim = self.post_merge_dim
 
     @abstractmethod
     def costs(self, prediction, prediction_mask,
-              groundtruth, groundtruth_mask, **states):
+            groundtruth, groundtruth_mask, **inputs):
+        """Compute the costs.
+
+        Can accept sequences and contexts to compute complicated costs
+        such as e.g. REINFORCE with baseline.
+
+        """
         pass
 
     @abstractmethod
-    def all_scores(self, prediction, **states):
+    def scores(self, **inputs):
+        """Compute the score for all possible next tokens.
+
+        This is only needed for the beam search and can only be implement
+        for discrete output tokens.
+
+        """
         pass
 
     @abstractmethod
-    def scores(self, **states):
-        pass
-
-    @abstractmethod
-    def sample(self, **states):
+    def sample(self, **inputs):
         pass
 
     @application
-    def _merge(self, **states):
-        merged = self.merge.apply(**{name: states[name]
+    def _merge(self, **inputs):
+        merged = self.merge.apply(**{name: inputs[name]
                                      for name in self.merge.input_names})
         merged = self.post_merge.apply(merged)
         return merged
 
 
-class SoftmaxReadout(Readout, Random):
+class SoftmaxReadout(MergeReadout, Random):
 
-    def __init__(self, **kwargs):
+    def __init__(self, num_tokens, **kwargs):
+        kwargs['post_merge_dim'] = num_tokens
         super(SoftmaxReadout, self).__init__(**kwargs)
-
+        self.num_tokens = num_tokens
         self.softmax = NDimensionalSoftmax()
         self.children += [self.softmax]
 
@@ -112,30 +161,31 @@ class SoftmaxReadout(Readout, Random):
         self.sample.inputs = []
         for application_method in [self.costs, self.all_scores,
                                    self.scores, self.sample]:
-            application_method.inputs += self.merged_states
+            application_method.inputs += self.input_names
 
         self.sample.outputs = ['samples', 'scores']
 
     @application
     def costs(self, prediction, prediction_mask,
-              groundtruth, groundtruth_mask, **all_states):
-        log_probs = self.all_scores(prediction, **all_states)
+              groundtruth, groundtruth_mask, **inputs):
+        log_probs = self.all_scores(prediction, **inputs)
         if not prediction_mask:
             prediction_mask = 1
         return -(log_probs * prediction_mask).sum(axis=0)
 
     @application
-    def all_scores(self, prediction, **all_states):
+    def all_scores(self, prediction, **inputs):
         return -self.softmax.categorical_cross_entropy(
-            prediction, self._merge(**all_states), extra_ndim=1)
+            prediction, self._merge(**dict_subset(inputs, self.merge_names)),
+            extra_ndim=1)
 
     @application
-    def scores(self, **states):
-        return self.softmax.log_probabilities(self._merge(**states))
+    def scores(self, **inputs):
+        return self.softmax.log_probabilities(self._merge(**inputs))
 
     @application
-    def sample(self, **states):
-        scores = self.scores(**states)
+    def sample(self, **inputs):
+        scores = self.scores(**inputs)
         probs = tensor.exp(scores)
         sample = self.theano_rng.multinomial(pvals=probs).argmax(axis=1)
         return sample, scores[tensor.arange(probs.shape[0]), sample]
@@ -152,34 +202,34 @@ class Feedback(Initializable):
 
     Attributes
     ----------
-    feedback_sequences : list
-    sequence_dims : dict
+    output_names : list
+    output_dims : dict
 
     """
-    @lazy(allocation=['feedback_sequences', 'sequence_dims'])
-    def __init__(self, feedback_sequences, sequence_dims,
+    @lazy(allocation=['output_names', 'output_dims'])
+    def __init__(self, output_names, output_dims,
                  embedding=None, input_dim=0,
                  **kwargs):
         super(Feedback, self).__init__(**kwargs)
 
-        self.feedback_sequences = feedback_sequences
-        self.sequence_dims = sequence_dims
+        self.output_names = output_names
+        self.output_dims = output_dims
         self.input_dim = input_dim
 
         self.embedding = embedding
-        self.fork = Fork(self.feedback_sequences)
+        self.fork = Fork(self.output_names)
 
         self.apply.inputs = ['input']
-        self.apply.outputs = feedback_sequences
+        self.apply.outputs = output_names
 
         self.children = [self.embedding, self.fork]
         self.children = [child for child in self.children if child]
 
     def _push_allocation_config(self):
         if self.fork:
-            self.fork.output_dims = self.sequence_dims
+            self.fork.output_dims = self.output_dims
         else:
-            self.embedding.output_dim, = self.sequence_dims
+            self.embedding.output_dim, = self.output_dims
         if self.embedding:
             self.embedding.input_dim = self.input_dim
             self.fork.input_dim = self.embedding.output_dim
@@ -214,12 +264,12 @@ class SequenceGenerator(Initializable):
         self.initial_states.outputs = self.recurrent.initial_states.outputs
 
     def _push_allocation_config(self):
-        self.readout.state_dims = [
+        self.readout.input_dims = [
             self.recurrent.get_dim(name)
-            for name in self.readout.merged_states]
-        self.feedback.sequence_dims = [
+            for name in self.readout.input_names]
+        self.feedback.output_dims = [
             self.recurrent.get_dim(name)
-            for name in self.feedback.feedback_sequences]
+            for name in self.feedback.output_names]
 
     @application
     def costs(self, application_call,
@@ -246,17 +296,22 @@ class SequenceGenerator(Initializable):
             application_call.add_auxiliary_variable(
                 variable.copy(), name=name)
 
+        # Those can potentially be used for computing the cost.
+        sequences_contexts = dict_subset(
+            sequences_states_contexts,
+            self.generate.contexts, self.generate.sequences)
         return self.readout.costs(
             prediction, prediction_mask,
             groundtruth, groundtruth_mask,
-            **dict_subset(states_outputs, self.readout.costs.inputs,
+            **dict_subset(dict_union(states_outputs,
+                                     sequences_contexts),
+                          self.readout.costs.inputs,
                           must_have=False))
 
     @recurrent
     def generate(self, **sequences_states_contexts):
         sampling_inputs = dict_subset(
-            sequences_states_contexts, self.readout.sample.inputs,
-            must_have=False)
+            sequences_states_contexts, self.readout.sample.inputs)
         samples, scores = self.readout.sample(**sampling_inputs)
         feedback = self.feedback.apply(samples, as_dict=True)
         next_states_outputs = self.recurrent.apply(
