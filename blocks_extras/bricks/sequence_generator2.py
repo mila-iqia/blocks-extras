@@ -139,8 +139,9 @@ class MergeReadout(AbstractReadout):
 
     @application
     def merge(self, **inputs):
-        merged = self.merge_brick.apply(**{name: inputs[name]
-                                     for name in self.merge_brick.input_names})
+        merged = self.merge_brick.apply(
+            **{name: inputs[name]
+               for name in self.merge_brick.input_names})
         merged = self.post_merge.apply(merged)
         return merged
 
