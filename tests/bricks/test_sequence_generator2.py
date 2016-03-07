@@ -10,8 +10,8 @@ class TestReadouts(object):
 
     def setUp(self):
         self.readout = SoftmaxReadout(
-            merged_states=['states1', 'states2'],
-            dim=4, state_dims=[2, 3],
+            input_names=['states1', 'states2'],
+            num_tokens=4, input_dims=[2, 3],
             weights_init=Uniform(width=1.0),
             biases_init=Uniform(width=1.0),
             seed=1)
@@ -29,7 +29,7 @@ class TestReadouts(object):
             + self.readout.post_merge.parameters[0].get_value())
 
     def test_merge(self):
-        assert self.readout.merged_dim == self.readout.dim
+        assert self.readout.merge_dim == self.readout.num_tokens
         merged = self.readout._merge(states1=self.states1, states2=self.states2).eval()
         assert_equal(merged, self.merged)
 
