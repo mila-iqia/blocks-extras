@@ -1,5 +1,6 @@
+import theano
 from theano import shared, tensor
-from blocks.bricks import Feedforward
+from blocks.bricks import Feedforward, Activation
 from blocks.bricks.base import application, lazy
 from blocks_extras.initialization import PermutationMatrix
 from blocks_extras.utils import check_valid_permutation
@@ -51,3 +52,10 @@ class FixedPermutation(Feedforward):
             return tensor.dot(input_, self._matrix)
         else:
             return tensor.take(input_, self._permutation, axis=1)
+
+
+class Softsign(Activation):
+    @application(inputs=['input_'], outputs=['output'])
+    def apply(self, input_):
+        one = tensor.constant(1, dtype=theano.config.floatX)
+        return input_ / (one + abs(input_))
