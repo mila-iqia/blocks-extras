@@ -1,6 +1,6 @@
 from collections import OrderedDict
+
 import numpy
-import pickle
 
 from blocks.extensions import SimpleExtension
 from blocks.graph import ComputationGraph
@@ -53,4 +53,4 @@ class PredictDataStream(SimpleExtension):
             predictions[var.name] = numpy.concatenate(predictions[var.name],
                                                       axis=0)
         if self.path is not None:
-            pickle.dump(predictions, open(self.path, 'wb'))
+            numpy.savez(self.path, **predictions)
