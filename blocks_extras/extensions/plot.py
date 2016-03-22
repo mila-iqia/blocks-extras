@@ -60,10 +60,7 @@ class PlottingExtension(SimpleExtension):
         self.sub = self._start_server_process() if self.start_server else None
         self.session = Session(root_url=self.server_url)
         self.document = Document()
-        self.session.use_doc(self.document_name)
-        self.session.load_document(self.document)
-        if clear_document:
-            self.document.clear()
+        self._setup_document(clear_document)
         super(PlottingExtension, self).__init__(**kwargs)
 
     def _start_server_process(self):
@@ -78,17 +75,30 @@ class PlottingExtension(SimpleExtension):
         time.sleep(2)
         logger.info('Plotting server PID: {}'.format(self.sub.pid))
 
+    def _setup_document(self, clear_document=False):
+        self.session.use_doc(self.document_name)
+        self.session.load_document(self.document)
+        if clear_document:
+            self.document.clear()
+        self._document_setup_done = True
+
     def __getstate__(self):
         state = self.__dict__.copy()
         state['sub'] = None
+        state.pop('session', None)
         state.pop('_push_thread', None)
         return state
 
     def __setstate__(self, state):
         self.__dict__.update(state)
         if self.start_server:
-            self._start_server_process()
-        self.session.use_doc(self.document_name)
+           self._start_server_process()
+        self.session = Session(root_url=self.server_url)
+        self._document_setup_done = False
+
+    def do(self, which_callback, *args):
+        if not self._document_setup_done:
+            self._setup_document()
 
     @property
     def push_thread(self):
@@ -103,9 +113,6 @@ class PlottingExtension(SimpleExtension):
     def push(self, which_callback):
         self.push_thread.put(which_callback, PushThread.PUSH)
 
-    @abstractmethod
-    def do(self, which_callback, *args):
-        pass
 
 
 class Plot(PlottingExtension):
@@ -182,6 +189,7 @@ class Plot(PlottingExtension):
         super(Plot, self).__init__(document_name, **kwargs)
 
     def do(self, which_callback, *args):
+        super(Plot, self).do(which_callback, *args)
         log = self.main_loop.log
         iteration = log.status['iterations_done']
         for key, value in log.current_row.items():
