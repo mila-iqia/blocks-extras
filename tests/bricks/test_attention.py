@@ -11,6 +11,7 @@ from blocks_extras.bricks.attention2 import AttentionRecurrent
 from blocks.graph import ComputationGraph
 from blocks.select import Selector
 
+
 def test_attention_recurrent():
     rng = numpy.random.RandomState(1234)
 
