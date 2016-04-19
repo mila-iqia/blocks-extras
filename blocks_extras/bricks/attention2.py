@@ -4,6 +4,7 @@ from blocks.bricks.recurrent import recurrent
 from blocks.bricks.parallel import Distribute
 from blocks.utils import dict_subset, dict_union, pack
 
+
 class AttentionRecurrent(Initializable):
     """Combines an attention mechanism and a recurrent transition.
 
@@ -98,7 +99,7 @@ class AttentionRecurrent(Initializable):
         self.do_apply.contexts = (self._context_names +
                                   [self.preprocessed_attended_name])
         self.do_apply.states = self._state_names + self._glimpse_names
-        self.do_apply.outputs =  self._state_names + self._glimpse_names
+        self.do_apply.outputs = self._state_names + self._glimpse_names
         self.initial_states.outputs = self.do_apply.states
 
         self.children = [self.transition, self.attention, self.distribute]
@@ -148,10 +149,11 @@ class AttentionRecurrent(Initializable):
         # Compute next states
         sequences_without_mask = {
             name: variable for name, variable in sequences.items()
-            if not 'mask' in name}
+            if 'mask' not in name}
         sequences.update(self.distribute.apply(
-            as_dict=True, **dict_subset(dict_union(sequences_without_mask, glimpses),
-                                        self.distribute.apply.inputs)))
+            as_dict=True, **dict_subset(
+                dict_union(sequences_without_mask, glimpses),
+                self.distribute.apply.inputs)))
         current_states = self.transition.apply(
             iterate=False, as_dict=True,
             **dict_union(sequences, kwargs))
