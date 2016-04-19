@@ -54,7 +54,7 @@ class AbstractReadout(Initializable):
 
     @abstractmethod
     def costs(self, prediction, prediction_mask,
-            groundtruth, groundtruth_mask, **inputs):
+              groundtruth, groundtruth_mask, **inputs):
         """Compute the costs.
 
         Can accept sequences and contexts to compute complicated costs
@@ -114,7 +114,7 @@ class MergeReadout(AbstractReadout):
 
     @abstractmethod
     def costs(self, prediction, prediction_mask,
-            groundtruth, groundtruth_mask, **inputs):
+              groundtruth, groundtruth_mask, **inputs):
         """Compute the costs.
 
         Can accept sequences and contexts to compute complicated costs
@@ -334,4 +334,3 @@ class SequenceGenerator(Initializable):
         if name == 'samples' or name == 'scores':
             return self.readout.get_dim(name)
         return self.recurrent.get_dim(name)
-

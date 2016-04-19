@@ -4,7 +4,7 @@ from six.moves import range
 
 import numpy
 from picklable_itertools.extras import equizip
-from theano import config, function, tensor
+from theano import config, function
 
 from blocks_extras.bricks.sequence_generator2 import SequenceGenerator
 from blocks.filter import VariableFilter, get_application_call, get_brick
