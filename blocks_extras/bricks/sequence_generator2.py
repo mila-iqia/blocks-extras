@@ -187,7 +187,8 @@ class SoftmaxReadout(MergeReadout, Random):
 
     @application
     def scores(self, **inputs):
-        return self.softmax.log_probabilities(self.merge(**inputs))
+        return self.softmax.log_probabilities(self.merge(
+            **dict_subset(inputs, self.merge_names)))
 
     @application
     def sample(self, **inputs):
